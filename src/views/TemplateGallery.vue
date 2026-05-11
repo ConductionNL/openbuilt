@@ -39,10 +39,16 @@
 					:alt="tpl.title || tpl.slug"
 					class="template-card__screenshot">
 				<div class="template-card__body">
-					<h2 class="template-card__title">{{ tpl.title || tpl.slug }}</h2>
+					<h2 class="template-card__title">
+						{{ tpl.title || tpl.slug }}
+					</h2>
 					<span class="template-card__category">{{ categoryLabel(tpl.category) }}</span>
-					<p class="template-card__usecase">{{ tpl.useCase || '' }}</p>
-					<p class="template-card__description">{{ tpl.description || '' }}</p>
+					<p class="template-card__usecase">
+						{{ tpl.useCase || '' }}
+					</p>
+					<p class="template-card__description">
+						{{ tpl.description || '' }}
+					</p>
 				</div>
 				<div class="template-card__actions">
 					<NcButton type="primary" @click="openClone(tpl)">
@@ -200,18 +206,22 @@ export default {
 	gap: 20px;
 	color: var(--color-main-text);
 }
+
 .template-gallery__header h1 {
 	margin: 0 0 4px 0;
 }
+
 .template-gallery__subtitle {
 	margin: 0;
 	color: var(--color-text-maxcontrast);
 }
+
 .template-gallery__filters {
 	display: flex;
 	gap: 16px;
 	flex-wrap: wrap;
 }
+
 .template-gallery__loading {
 	display: flex;
 	gap: 12px;
@@ -219,9 +229,11 @@ export default {
 	padding: 24px;
 	color: var(--color-text-maxcontrast);
 }
+
 .template-gallery__empty {
 	padding: 32px;
 }
+
 .template-gallery__grid {
 	list-style: none;
 	padding: 0;
@@ -230,6 +242,7 @@ export default {
 	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 	gap: 20px;
 }
+
 .template-card {
 	background: var(--color-main-background);
 	border: 1px solid var(--color-border);
@@ -238,6 +251,7 @@ export default {
 	flex-direction: column;
 	overflow: hidden;
 }
+
 .template-card__screenshot {
 	width: 100%;
 	height: 160px;
@@ -245,6 +259,7 @@ export default {
 	display: block;
 	background: var(--color-background-dark);
 }
+
 .template-card__body {
 	padding: 16px;
 	display: flex;
@@ -252,24 +267,29 @@ export default {
 	gap: 6px;
 	flex: 1 1 auto;
 }
+
 .template-card__title {
 	margin: 0;
 	font-size: 1.05rem;
 }
+
 .template-card__category {
 	font-size: 0.8rem;
 	color: var(--color-primary-element);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 }
+
 .template-card__usecase {
 	margin: 0;
 	font-weight: 500;
 }
+
 .template-card__description {
 	margin: 0;
 	color: var(--color-text-maxcontrast);
 }
+
 .template-card__actions {
 	padding: 0 16px 16px 16px;
 	display: flex;

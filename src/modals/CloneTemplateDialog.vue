@@ -18,7 +18,9 @@
 				:label="t('openbuilt', 'Slug (kebab-case, max 32 chars)')"
 				:placeholder="t('openbuilt', 'my-permits')"
 				@update:value="localSlug = $event" />
-			<p v-if="error" class="clone-dialog__error" role="alert">{{ error }}</p>
+			<p v-if="error" class="clone-dialog__error" role="alert">
+				{{ error }}
+			</p>
 			<div class="clone-dialog__actions">
 				<NcButton @click="onClose">
 					{{ t('openbuilt', 'Cancel') }}
@@ -106,14 +108,17 @@ export default {
 	gap: 12px;
 	min-width: 320px;
 }
+
 .clone-dialog__summary {
 	color: var(--color-text-maxcontrast);
 	margin: 0 0 8px 0;
 }
+
 .clone-dialog__error {
 	color: var(--color-error);
 	margin: 4px 0 0 0;
 }
+
 .clone-dialog__actions {
 	display: flex;
 	gap: 8px;

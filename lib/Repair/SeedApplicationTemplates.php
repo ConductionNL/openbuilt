@@ -170,7 +170,7 @@ class SeedApplicationTemplates implements IRepairStep
     {
         $required = ['slug', 'title', 'description', 'useCase', 'category', 'manifest', 'version'];
         foreach ($required as $key) {
-            if (isset($data[$key]) === false || $data[$key] === '' || $data[$key] === null) {
+            if (isset($data[$key]) === false || $data[$key] === '') {
                 throw new RuntimeException('Template "'.$slug.'" missing required field: '.$key);
             }
         }

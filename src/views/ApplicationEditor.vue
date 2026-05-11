@@ -155,25 +155,30 @@ export default {
 	padding: var(--default-grid-baseline, 8px);
 	height: 100%;
 }
+
 .openbuilt-editor__list {
 	width: 240px;
 	flex-shrink: 0;
 	overflow-y: auto;
 	border-right: 1px solid var(--color-border, #ddd);
 }
+
 .openbuilt-editor__list ul {
 	list-style: none;
 	padding: 0;
 	margin: 0;
 }
+
 .openbuilt-editor__list li {
 	padding: 8px 12px;
 	cursor: pointer;
 	border-radius: var(--border-radius, 4px);
 }
+
 .openbuilt-editor__list li.active {
 	background: var(--color-primary-light, #e6f0fa);
 }
+
 .openbuilt-editor__pane {
 	flex: 1 1 auto;
 	display: flex;
@@ -181,6 +186,7 @@ export default {
 	gap: 8px;
 	padding: 8px 16px;
 }
+
 .openbuilt-editor__textarea {
 	flex: 1 1 auto;
 	min-height: 400px;
@@ -190,15 +196,18 @@ export default {
 	border: 1px solid var(--color-border, #ddd);
 	border-radius: var(--border-radius, 4px);
 }
+
 .openbuilt-editor__error {
 	color: var(--color-error, #d63f3f);
 	font-size: 13px;
 }
+
 .openbuilt-editor__actions {
 	display: flex;
 	gap: 8px;
 	align-items: center;
 }
+
 .openbuilt-editor__help {
 	font-size: 13px;
 	color: var(--color-text-maxcontrast, #888);
