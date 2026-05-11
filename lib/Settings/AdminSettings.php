@@ -27,6 +27,7 @@ namespace OCA\OpenBuilt\Settings;
 use OCA\OpenBuilt\AppInfo\Application;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\AppFramework\Services\IInitialState;
 use OCP\Settings\ISettings;
 
 /**
@@ -37,10 +38,16 @@ class AdminSettings implements ISettings
     /**
      * Constructor.
      *
-     * @param IAppManager $appManager The app manager.
+     * @param IAppManager   $appManager   The app manager.
+     * @param IInitialState $initialState The initial-state service used to
+     *                                    deliver server-side data to the Vue
+     *                                    bundle (per ADR-004 hard rule + the
+     *                                    hydra-gate-initial-state mechanical
+     *                                    gate — do NOT use DOM dataset attrs).
      */
     public function __construct(
         private readonly IAppManager $appManager,
+        private readonly IInitialState $initialState,
     ) {
     }//end __construct()
 
@@ -53,11 +60,11 @@ class AdminSettings implements ISettings
     {
         $version = $this->appManager->getAppVersion(appId: Application::APP_ID);
 
-        return new TemplateResponse(
-            Application::APP_ID,
-            'settings/admin',
-            ['version' => $version]
-        );
+        // ADR-004 + hydra-gate-initial-state: hand server data to the bundle
+        // via IInitialState + loadState, not via DOM data-* attributes.
+        $this->initialState->provideInitialState(key: 'version', data: $version);
+
+        return new TemplateResponse(Application::APP_ID, 'settings/admin');
     }//end getForm()
 
     /**
