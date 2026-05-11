@@ -189,4 +189,42 @@ class ApplicationsControllerTest extends TestCase
         $data = $result->getData();
         self::assertSame('inconsistent_state', $data['error']);
     }//end testGetManifestReturns500OnInconsistentState()
+
+    /**
+     * Unexpected throwable (e.g. DB exception) → 500 with internal_error
+     * AND a correlationId in both the response envelope and the log
+     * context, so operators can correlate the client-facing error with
+     * the server-side stack trace. Regression guard for MWest review
+     * finding #4 on PR #2.
+     *
+     * @return void
+     */
+    public function testGetManifestIncludesCorrelationIdOnInternalError(): void
+    {
+        // Force an unexpected throwable from the OR layer.
+        $this->objectService->method('searchObjects')
+            ->willThrowException(new \RuntimeException('boom'));
+
+        $loggedContext = null;
+        $this->logger->expects(self::atLeastOnce())
+            ->method('error')
+            ->willReturnCallback(static function (string $msg, array $context = []) use (&$loggedContext): void {
+                $loggedContext = $context;
+            });
+
+        $result = $this->controller->getManifest(slug: 'hello-world');
+
+        self::assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $result->getStatus());
+        $data = $result->getData();
+        self::assertSame('internal_error', $data['error']);
+
+        // Response envelope carries the correlationId (16 lowercase hex chars).
+        self::assertArrayHasKey('correlationId', $data);
+        self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', $data['correlationId']);
+
+        // Log context carries the SAME correlationId — operators can grep for it.
+        self::assertIsArray($loggedContext);
+        self::assertArrayHasKey('correlationId', $loggedContext);
+        self::assertSame($data['correlationId'], $loggedContext['correlationId']);
+    }//end testGetManifestIncludesCorrelationIdOnInternalError()
 }//end class

@@ -72,6 +72,24 @@ class ApplicationsController extends Controller
      * manifest. The manifest is returned UNWRAPPED (no OR envelope) so
      * useAppManifest in @conduction/nextcloud-vue consumes it directly.
      *
+     * Visibility model
+     * ----------------
+     * Manifests are publicly readable to every authenticated user in the
+     * org. `#[NoAdminRequired]` is intentional: the hello-world seed app
+     * (and any future "always-on" virtual app) is publicly mountable as
+     * soon as a route exists. The manifest body contains the structural
+     * description of the UI (routes, widgets, endpoints) but no row-level
+     * data — that is fetched separately through OpenRegister and goes
+     * through OR's own authorisation layer.
+     *
+     * Future role-scoped manifests (admin-only apps, group-restricted
+     * apps) must NOT be implemented by hardening this endpoint. The
+     * canonical extension point is the BuiltAppRoute schema itself: add
+     * a `restrictToGroup` (or similar) property and filter the route
+     * lookup above on the current user's groups. That keeps the visibility
+     * model declarative and avoids scattering per-endpoint ACL logic.
+     * Tracked for the RBAC spec (PR #6 / feature/spec-openbuilt-rbac).
+     *
      * @param string $slug The virtual-app slug from the URL
      *
      * @return JSONResponse The manifest blob, or a 404 envelope when not found
@@ -152,9 +170,20 @@ class ApplicationsController extends Controller
             // Return the manifest UNWRAPPED — useAppManifest expects the bare object.
             return new JSONResponse(data: $manifest, statusCode: Http::STATUS_OK);
         } catch (\Throwable $e) {
-            $this->logger->error('OpenBuilt: getManifest failed for slug '.$slug.': '.$e->getMessage(), ['exception' => $e]);
+            // Generate a correlation ID so the client and server logs share an
+            // identifier — operators can grep `correlationId=<id>` in app.log
+            // without needing the request timestamp. Per MWest review on PR #2.
+            $correlationId = bin2hex(random_bytes(8));
+            $this->logger->error(
+                'OpenBuilt: getManifest failed for slug '.$slug.': '.$e->getMessage(),
+                ['exception' => $e, 'correlationId' => $correlationId, 'slug' => $slug]
+            );
             return new JSONResponse(
-                data: ['error' => 'internal_error', 'message' => 'Failed to resolve manifest'],
+                data: [
+                    'error'         => 'internal_error',
+                    'message'       => 'Failed to resolve manifest',
+                    'correlationId' => $correlationId,
+                ],
                 statusCode: Http::STATUS_INTERNAL_SERVER_ERROR
             );
         }//end try
