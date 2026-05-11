@@ -20,8 +20,28 @@ export default new Router({
 	base: generateUrl('/apps/openbuilt'),
 	routes: [
 		{ path: '/', name: 'Dashboard', component: Dashboard },
-		// Manifest editor (textarea v1). Visual editor lands in chain spec #5.
+		// Application editor — list view (no slug).
 		{ path: '/applications', name: 'ApplicationEditor', component: ApplicationEditor },
+		// Application editor — Design tab is default per REQ-OBR-005.
+		{
+			path: '/applications/:slug',
+			name: 'ApplicationEditorBySlug',
+			component: ApplicationEditor,
+			props: (route) => ({ slug: route.params.slug, initialTab: 'design' }),
+		},
+		// Alias that opens the editor pre-focused on the Design tab (task 5.3).
+		{
+			path: '/applications/:slug/design',
+			name: 'ApplicationEditorDesign',
+			component: ApplicationEditor,
+			props: (route) => ({ slug: route.params.slug, initialTab: 'design' }),
+		},
+		{
+			path: '/applications/:slug/json',
+			name: 'ApplicationEditorJson',
+			component: ApplicationEditor,
+			props: (route) => ({ slug: route.params.slug, initialTab: 'json' }),
+		},
 		// Virtual-app host. The trailing wildcard forwards path segments to
 		// the inner CnAppRoot's router (per design.md Decision 5).
 		{ path: '/builder/:slug/:pathMatch(.*)?', name: 'BuilderHost', component: BuilderHost },

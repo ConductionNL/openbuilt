@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: EUPL-1.2
 /**
- * useManifestValidator — debounced wrapper around validateManifest from
- * @conduction/nextcloud-vue. Implements REQ-OBPD-011.
+ * useManifestValidator — debounced wrapper around `validateManifest` from
+ * the `@conduction/nextcloud-vue` library. Implements REQ-OBPD-011.
  *
  * Responsibilities:
  *  - Re-run validateManifest at most once every 300ms of editor-state change.

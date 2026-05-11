@@ -1,206 +1,258 @@
+<!-- SPDX-License-Identifier: EUPL-1.2 -->
 <!--
-  - SPDX-License-Identifier: EUPL-1.2
-  -
-  - Textarea-based manifest editor — v1 of the OpenBuilt authoring UI.
-  - Visual editors land in chain spec #5 (openbuilt-page-editor).
-  - Per design.md the editor is integrator-only; the in-app help string
-  - openbuilt.editor.help documents that.
-  -
-  - Per ADR-022 the editor reads/writes Application objects via OR's
-  - REST API directly — no app-local CRUD wrapper.
+  - ApplicationEditor — two-tab shell wrapping the visual PageDesigner
+  - (Design tab, default) and the Raw JSON textarea fallback. Both tabs
+  - share the in-flight manifest state via the applicationEditor Pinia
+  - store, so unsaved edits survive a tab switch. Implements
+  - MODIFIED REQ-OBR-005 (Default tab is Design, Unsaved edits survive a
+  - tab switch, Invalid edit is blocked before save) and task 5.2.
   -->
 <template>
-	<div class="openbuilt-editor">
-		<NcAppContent>
-			<div class="openbuilt-editor__layout">
-				<aside class="openbuilt-editor__list">
-					<h3>{{ t('openbuilt', 'Virtual apps') }}</h3>
-					<ul>
-						<li
-							v-for="app in applications"
-							:key="app.uuid || app.id"
-							:class="{ active: app.uuid === selectedUuid }"
-							@click="select(app)">
-							{{ app.name || app.slug }}
-							<small>{{ app.status }}</small>
-						</li>
-					</ul>
-					<button v-if="applications.length === 0" disabled>
-						{{ t('openbuilt', 'No virtual apps yet — seed `hello-world` should appear after install.') }}
-					</button>
-				</aside>
-				<section class="openbuilt-editor__pane">
-					<header v-if="selected">
-						<h2>{{ selected.name || selected.slug }}</h2>
-						<small>{{ t('openbuilt', 'Status') }}: {{ selected.status }} · {{ t('openbuilt', 'Version') }}: {{ selected.version }}</small>
-					</header>
-					<p class="openbuilt-editor__help">
-						{{ t('openbuilt', 'Integrator-only editor: edit the raw JSON manifest below. The visual editor lives in a follow-on release (openbuilt-page-editor).') }}
-					</p>
-					<textarea
-						v-model="manifestText"
-						class="openbuilt-editor__textarea"
-						spellcheck="false"
-						:placeholder="t('openbuilt', 'Paste or edit the JSON manifest here. See @conduction/nextcloud-vue/src/schemas/app-manifest.schema.json for the canonical schema.')" />
-					<div v-if="validationError" class="openbuilt-editor__error">
-						{{ t('openbuilt', 'Invalid manifest') }}: {{ validationError }}
-					</div>
-					<div class="openbuilt-editor__actions">
-						<button :disabled="!selected || saving" @click="save">
-							{{ saving ? t('openbuilt', 'Saving…') : t('openbuilt', 'Save') }}
-						</button>
-						<a v-if="selected && selected.status === 'published'" :href="builderUrl">
-							{{ t('openbuilt', 'Open virtual app') }}
-						</a>
-					</div>
-				</section>
+	<div class="application-editor">
+		<header class="application-editor__header">
+			<h2>{{ t('openbuilt', 'Application editor') }}</h2>
+			<div v-if="store.loading" class="application-editor__status">
+				{{ t('openbuilt', 'Loading…') }}
 			</div>
-		</NcAppContent>
+			<div v-if="store.loadError" class="application-editor__error" role="alert">
+				{{ store.loadError }}
+			</div>
+			<div class="application-editor__toolbar">
+				<button
+					type="button"
+					class="application-editor__tab"
+					:class="{ 'application-editor__tab--active': activeTab === 'design' }"
+					@click="switchTab('design')">
+					{{ t('openbuilt', 'Design') }}
+				</button>
+				<button
+					type="button"
+					class="application-editor__tab"
+					:class="{ 'application-editor__tab--active': activeTab === 'json' }"
+					@click="switchTab('json')">
+					{{ t('openbuilt', 'Raw JSON') }}
+				</button>
+				<span class="application-editor__spacer" />
+				<span v-if="store.dirty" class="application-editor__dirty">
+					{{ t('openbuilt', 'Unsaved changes') }}
+				</span>
+				<button
+					type="button"
+					class="application-editor__save"
+					:disabled="!canSave"
+					@click="onSave">
+					{{ store.saving ? t('openbuilt', 'Saving…') : t('openbuilt', 'Save') }}
+				</button>
+			</div>
+			<div v-if="store.saveError" class="application-editor__error" role="alert">
+				{{ store.saveError }}
+			</div>
+		</header>
+
+		<section v-show="activeTab === 'design'" class="application-editor__pane">
+			<PageDesigner
+				v-if="store.manifest"
+				:manifest="store.manifest"
+				:slug="store.slug"
+				@update:manifest="onManifestUpdate"
+				@save-and-preview="onSaveAndPreview" />
+			<p v-else class="application-editor__empty">
+				{{ t('openbuilt', 'Load an application to start editing.') }}
+			</p>
+		</section>
+
+		<section v-show="activeTab === 'json'" class="application-editor__pane">
+			<p class="application-editor__hint">
+				{{ t('openbuilt', 'Raw JSON tab — integrator fallback. Edits round-trip into the Design tab on commit.') }}
+			</p>
+			<textarea
+				class="application-editor__textarea"
+				spellcheck="false"
+				:value="store.rawJsonDraft"
+				@input="onRawJsonInput($event.target.value)" />
+			<p v-if="rawJsonError" class="application-editor__error" role="alert">
+				{{ rawJsonError }}
+			</p>
+		</section>
 	</div>
 </template>
 
 <script>
-import { NcAppContent } from '@nextcloud/vue'
-import { generateUrl } from '@nextcloud/router'
-import { validateManifest } from '@conduction/nextcloud-vue'
-import axios from '@nextcloud/axios'
+import { useApplicationEditorStore } from '../store/modules/applicationEditor.js'
+import PageDesigner from './PageDesigner.vue'
 
 export default {
 	name: 'ApplicationEditor',
-	components: {
-		NcAppContent,
+	components: { PageDesigner },
+	props: {
+		// Optional UUID — when set, the editor auto-loads on mount.
+		uuid: {
+			type: String,
+			default: '',
+		},
+		// Optional slug — used for the live-preview deep-link fallback.
+		slug: {
+			type: String,
+			default: '',
+		},
+		// Initial tab; design is the default per REQ-OBR-005.
+		initialTab: {
+			type: String,
+			default: 'design',
+			validator: (v) => ['design', 'json'].includes(v),
+		},
+	},
+	setup() {
+		const store = useApplicationEditorStore()
+		return { store }
 	},
 	data() {
 		return {
-			applications: [],
-			selectedUuid: null,
-			manifestText: '',
-			validationError: '',
-			saving: false,
+			activeTab: this.initialTab,
+			rawJsonError: '',
 		}
 	},
 	computed: {
-		selected() {
-			return this.applications.find(a => (a.uuid || a.id) === this.selectedUuid) || null
-		},
-		builderUrl() {
-			if (!this.selected) {
-				return ''
-			}
-			return generateUrl(`/apps/openbuilt/builder/${this.selected.slug}`)
+		canSave() {
+			return this.store.dirty && !this.store.saving && !this.rawJsonError
 		},
 	},
-	async mounted() {
-		await this.refresh()
-		if (this.applications.length > 0) {
-			this.select(this.applications[0])
-		}
+	watch: {
+		uuid: {
+			immediate: true,
+			handler(val) {
+				if (val) {
+					this.store.load(val)
+				}
+			},
+		},
 	},
 	methods: {
-		async refresh() {
-			try {
-				const url = generateUrl('/apps/openregister/api/objects/openbuilt/application')
-				const { data } = await axios.get(url, { params: { _limit: 100 } })
-				this.applications = (data && data.results) ? data.results : (Array.isArray(data) ? data : [])
-			} catch (e) {
-				this.applications = []
-				this.validationError = `Failed to load applications: ${e.message || e}`
+		switchTab(tab) {
+			// Unsaved edits survive a tab switch — the store is the single
+			// source of truth so this is a pure UI toggle.
+			this.activeTab = tab
+		},
+		onManifestUpdate(manifest) {
+			this.store.manifest = manifest
+			this.store.touch()
+		},
+		onRawJsonInput(text) {
+			const result = this.store.commitRawJsonDraft(text)
+			this.rawJsonError = result.ok ? '' : result.error
+		},
+		async onSave() {
+			const ok = await this.store.save()
+			if (ok) {
+				this.rawJsonError = ''
 			}
 		},
-		select(app) {
-			this.selectedUuid = (app.uuid || app.id)
-			this.manifestText = JSON.stringify(app.manifest || {}, null, 2)
-			this.validationError = ''
-		},
-		async save() {
-			if (!this.selected) {
-				return
-			}
-			this.validationError = ''
-			let parsed
-			try {
-				parsed = JSON.parse(this.manifestText)
-			} catch (e) {
-				this.validationError = `JSON parse error: ${e.message}`
-				return
-			}
-			const result = validateManifest ? validateManifest(parsed) : { valid: true, errors: [] }
-			if (result && result.valid === false) {
-				this.validationError = (result.errors || ['unknown']).join('; ')
-				return
-			}
-			this.saving = true
-			try {
-				const url = generateUrl(`/apps/openregister/api/objects/openbuilt/application/${this.selectedUuid}`)
-				await axios.put(url, { ...this.selected, manifest: parsed })
-				await this.refresh()
-				const updated = this.applications.find(a => (a.uuid || a.id) === this.selectedUuid)
-				if (updated) {
-					this.select(updated)
+		onSaveAndPreview() {
+			// Save then open the spec-1 built-app deep link in a new tab.
+			this.store.save().then((ok) => {
+				if (ok && this.store.slug) {
+					const url = `/index.php/apps/openbuilt/builder/${this.store.slug}`
+					window.open(url, '_blank', 'noopener')
 				}
-			} catch (e) {
-				this.validationError = `Save failed: ${e.message || e}`
-			} finally {
-				this.saving = false
-			}
+			})
 		},
 	},
 }
 </script>
 
 <style scoped>
-.openbuilt-editor__layout {
-	display: flex;
-	gap: var(--default-grid-baseline, 8px);
-	padding: var(--default-grid-baseline, 8px);
-	height: 100%;
-}
-.openbuilt-editor__list {
-	width: 240px;
-	flex-shrink: 0;
-	overflow-y: auto;
-	border-right: 1px solid var(--color-border, #ddd);
-}
-.openbuilt-editor__list ul {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-}
-.openbuilt-editor__list li {
-	padding: 8px 12px;
-	cursor: pointer;
-	border-radius: var(--border-radius, 4px);
-}
-.openbuilt-editor__list li.active {
-	background: var(--color-primary-light, #e6f0fa);
-}
-.openbuilt-editor__pane {
-	flex: 1 1 auto;
+.application-editor {
+	padding: 8px 4px 24px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	padding: 8px 16px;
 }
-.openbuilt-editor__textarea {
-	flex: 1 1 auto;
-	min-height: 400px;
+.application-editor__header {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.application-editor__header h2 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+}
+.application-editor__status {
+	font-size: 13px;
+	color: var(--color-text-maxcontrast);
+}
+.application-editor__error {
+	margin: 0;
+	font-size: 13px;
+	color: var(--color-error);
+	padding: 4px 8px;
+	background: var(--color-background-hover);
+	border-left: 3px solid var(--color-error);
+	border-radius: var(--border-radius);
+}
+.application-editor__toolbar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.application-editor__spacer {
+	flex: 1;
+}
+.application-editor__tab {
+	padding: 6px 12px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
+	cursor: pointer;
+	font-size: 13px;
+}
+.application-editor__tab--active {
+	background: var(--color-primary-element-light);
+	border-color: var(--color-primary-element);
+	font-weight: 600;
+}
+.application-editor__dirty {
+	font-size: 12px;
+	color: var(--color-warning, var(--color-text-maxcontrast));
+	font-style: italic;
+}
+.application-editor__save {
+	padding: 6px 14px;
+	border: 1px solid var(--color-primary-element);
+	border-radius: var(--border-radius);
+	background: var(--color-primary-element);
+	color: var(--color-primary-text);
+	cursor: pointer;
+	font-size: 13px;
+	font-weight: 600;
+}
+.application-editor__save[disabled] {
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+.application-editor__pane {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.application-editor__hint {
+	margin: 0;
+	font-size: 12px;
+	color: var(--color-text-maxcontrast);
+}
+.application-editor__textarea {
+	min-height: 60vh;
 	font-family: monospace;
 	font-size: 13px;
 	padding: 8px;
-	border: 1px solid var(--color-border, #ddd);
-	border-radius: var(--border-radius, 4px);
+	border: 1px solid var(--color-border);
+	border-radius: var(--border-radius);
+	background: var(--color-main-background);
+	color: var(--color-main-text);
 }
-.openbuilt-editor__error {
-	color: var(--color-error, #d63f3f);
-	font-size: 13px;
-}
-.openbuilt-editor__actions {
-	display: flex;
-	gap: 8px;
-	align-items: center;
-}
-.openbuilt-editor__help {
-	font-size: 13px;
-	color: var(--color-text-maxcontrast, #888);
+.application-editor__empty {
+	padding: 16px;
+	color: var(--color-text-maxcontrast);
 }
 </style>
