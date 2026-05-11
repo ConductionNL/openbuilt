@@ -23,7 +23,9 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Tests\Unit\Controller;
 
 use OCA\OpenBuilt\Controller\ApplicationsController;
+use OCA\OpenRegister\Db\Register;
 use OCA\OpenRegister\Db\RegisterMapper;
+use OCA\OpenRegister\Db\Schema;
 use OCA\OpenRegister\Db\SchemaMapper;
 use OCA\OpenRegister\Service\ObjectService;
 use OCP\AppFramework\Http;
@@ -73,18 +75,15 @@ class ApplicationsControllerTest extends TestCase
         $this->objectService = $this->createMock(ObjectService::class);
 
         // RegisterMapper + SchemaMapper mocks: both expose ->find() returning
-        // an entity with ->getId(). Use mocks against stdClass + addMethods so
-        // we don't depend on the entity hierarchy in this unit test.
-        $registerEntity = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['getId'])
-            ->getMock();
+        // a Register/Schema entity respectively. The mappers' return types
+        // are `: Register` and `: Schema` so we must mock the concrete
+        // entity classes (PHPUnit IncompatibleReturnValueException otherwise).
+        $registerEntity = $this->createMock(Register::class);
         $registerEntity->method('getId')->willReturn(926);
         $registerMapper = $this->createMock(RegisterMapper::class);
         $registerMapper->method('find')->willReturn($registerEntity);
 
-        $schemaEntity = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['getId'])
-            ->getMock();
+        $schemaEntity = $this->createMock(Schema::class);
         $schemaEntity->method('getId')->willReturn(1635);
         $schemaMapper = $this->createMock(SchemaMapper::class);
         $schemaMapper->method('find')->willReturn($schemaEntity);

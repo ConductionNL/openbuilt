@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Tests\Unit\Repair;
 
 use OCA\OpenBuilt\Repair\SeedHelloWorld;
+use OCA\OpenRegister\Db\ObjectEntity;
 use OCA\OpenRegister\Service\ObjectService;
 use OCP\Migration\IOutput;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -123,18 +124,13 @@ class SeedHelloWorldTest extends TestCase
             ->method('findAll')
             ->willReturn([]);
 
-        // Stub Application save to return an object that does NOT expose
+        // Stub Application save to return an ObjectEntity that does NOT expose
         // a @self.id — the BuiltAppRoute write path is skipped, leaving
-        // exactly 4 calls: 1 Application + 3 sample HelloMessages.
-        $bareEntity = new class () {
-            /**
-             * @return array<string, mixed>
-             */
-            public function jsonSerialize(): array
-            {
-                return [];
-            }
-        };
+        // exactly 4 calls: 1 Application + 3 sample HelloMessages. We mock the
+        // concrete ObjectEntity (saveObject is typed `: ObjectEntity`) and
+        // make jsonSerialize() return an empty array.
+        $bareEntity = $this->createMock(ObjectEntity::class);
+        $bareEntity->method('jsonSerialize')->willReturn([]);
 
         $this->objectService->expects(self::exactly(4))
             ->method('saveObject')
@@ -159,16 +155,11 @@ class SeedHelloWorldTest extends TestCase
             ->method('findAll')
             ->willReturn([]);
 
-        // Stub Application save to return an entity exposing @self.id.
-        $applicationEntity = new class () {
-            /**
-             * @return array<string, mixed>
-             */
-            public function jsonSerialize(): array
-            {
-                return ['@self' => ['id' => 'app-uuid-123']];
-            }
-        };
+        // Stub Application save to return an ObjectEntity exposing @self.id —
+        // five saves total (Application + BuiltAppRoute + 3 sample messages).
+        $applicationEntity = $this->createMock(ObjectEntity::class);
+        $applicationEntity->method('jsonSerialize')
+            ->willReturn(['@self' => ['id' => 'app-uuid-123']]);
 
         $this->objectService->expects(self::exactly(5))
             ->method('saveObject')
