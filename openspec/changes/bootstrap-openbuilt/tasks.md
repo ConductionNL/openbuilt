@@ -1,34 +1,34 @@
 ## 1. Implementation Tasks — openbuilt-application-register
 
-- [ ] 1.1 **Declare `Application` schema in `lib/Settings/openbuilt_register.json`**
+- [x] 1.1 **Declare `Application` schema in `lib/Settings/openbuilt_register.json`**
   - spec_ref: REQ-OBA-001, REQ-OBA-002
   - files: `lib/Settings/openbuilt_register.json`
   - acceptance_criteria: Schema declares `uuid`, `slug` (kebab-case pattern), `name` (required), `description`, `manifest` (object, required, with a `$ref` or inline reference to the canonical app-manifest schema), `version` (semver pattern, required), `status` (enum draft|published|archived, default draft, required). Validates against OpenAPI 3.0.0.
   - Implement: declarative — no PHP service class.
   - Test: integration test creates an Application via OR REST, asserts schema validation kicks in on a malformed manifest.
 
-- [ ] 1.2 **Add `x-openregister-lifecycle` to the `Application` schema** (canonical ADR-031 example)
+- [x] 1.2 **Add `x-openregister-lifecycle` to the `Application` schema** (canonical ADR-031 example)
   - spec_ref: REQ-OBA-003
   - files: `lib/Settings/openbuilt_register.json` (NOT a new PHP service)
   - acceptance_criteria: Declares states `draft`, `published`, `archived` and transitions `draft → published`, `published → archived`, `archived → draft`. Each transition emits an OR audit event. No `ApplicationLifecycleService.php` file is created.
   - Implement: declarative schema patch only.
   - Test: integration test transitions a seeded Application through every allowed state, asserts audit-trail entries exist, asserts a disallowed transition (`draft → archived`) returns 4xx.
 
-- [ ] 1.3 **Declare `BuiltAppRoute` schema and slug uniqueness**
+- [x] 1.3 **Declare `BuiltAppRoute` schema and slug uniqueness**
   - spec_ref: REQ-OBA-004
   - files: `lib/Settings/openbuilt_register.json`
   - acceptance_criteria: Schema declares `slug` (kebab-case, required) and `applicationUuid` (UUID-format, required); slug uniqueness scoped to organisation (declarative if the engine supports it; otherwise documented in design.md OQ-1 as a thin-glue fallback).
   - Implement: declarative schema patch (and, only if necessary per design.md OQ-1, a single `BuiltAppRouteSyncListener.php` subscribed to OR's lifecycle event).
   - Test: integration test publishes two Applications with the same slug in the same organisation, asserts the second is rejected.
 
-- [ ] 1.4 **Wire BuiltAppRoute upkeep to the Application lifecycle**
+- [x] 1.4 **Wire BuiltAppRoute upkeep to the Application lifecycle**
   - spec_ref: REQ-OBA-004
   - files: `lib/Settings/openbuilt_register.json` (preferred); only if OR's engine is missing the hook, `lib/Listener/BuiltAppRouteSyncListener.php`
   - acceptance_criteria: Transitioning an Application to `published` creates / refreshes its BuiltAppRoute; transitioning to `archived` removes (or marks inactive) the BuiltAppRoute. Behaviour is identical whether the action is declarative (`x-openregister-lifecycle.on_published`) or listener-based.
   - Implement: prefer the declarative path; record the chosen path in `hydra.json` under `decisions[]` for self-learning.
   - Test: integration test asserts the BuiltAppRoute row appears on publish and disappears on archive.
 
-- [ ] 1.5 **Confirm multi-tenant scoping via OR `organisation`**
+- [x] 1.5 **Confirm multi-tenant scoping via OR `organisation`**
   - spec_ref: REQ-OBA-005
   - files: `lib/Settings/openbuilt_register.json` (no changes if OR defaults already apply)
   - acceptance_criteria: Cross-organisation reads return empty / 403 per OR's standard contract. No app-local RBAC code introduced (ADR-022).
@@ -37,28 +37,28 @@
 
 ## 2. Implementation Tasks — openbuilt-runtime
 
-- [ ] 2.1 **Register the manifest endpoint route in `appinfo/routes.php`** (ADR-016)
+- [x] 2.1 **Register the manifest endpoint route in `appinfo/routes.php`** (ADR-016)
   - spec_ref: REQ-OBR-001
   - files: `appinfo/routes.php`
   - acceptance_criteria: Route `GET /api/applications/{slug}/manifest` maps to `applications#getManifest` with `#[NoAdminRequired]`. Only registration path is `routes.php` — no attribute-only registration.
   - Implement: ~5 LOC route declaration.
   - Test: Newman + Playwright network-request capture verifies the route resolves.
 
-- [ ] 2.2 **Add `ApplicationsController::getManifest`** (thin-glue code per ADR-032)
+- [x] 2.2 **Add `ApplicationsController::getManifest`** (thin-glue code per ADR-032)
   - spec_ref: REQ-OBR-001
   - files: `lib/Controller/ApplicationsController.php`
   - acceptance_criteria: `getManifest(string $slug): JSONResponse` resolves slug → Application via OR's ObjectService and the `BuiltAppRoute` index, returns the `manifest` blob unwrapped (no OR envelope), 200 on hit, 404 on miss. ~15 LOC; carries SPDX + EUPL-1.2 docblock (per memory rule). `#[NoAdminRequired]` attribute is set so route-auth gate-5 passes.
   - Implement: single method, no service class.
   - Test: PHPUnit asserts 404 on unknown slug + 200+payload on known slug.
 
-- [ ] 2.3 **Build `BuilderHost.vue` mounting a nested `CnAppRoot`**
+- [x] 2.3 **Build `BuilderHost.vue` mounting a nested `CnAppRoot`**
   - spec_ref: REQ-OBR-002, REQ-OBR-003
   - files: `src/views/BuilderHost.vue`, `src/router/index.js` (route registration), `src/manifests/placeholder.json`
   - acceptance_criteria: Vue route `/builder/:slug(.*)` mounts `BuilderHost.vue`; the host renders `<CnAppRoot :app-id="\`openbuilt-${slug}\`" :bundled-manifest="placeholder" :key="slug" :options="{ fetcher: redirectingFetcher }" />`. Inner-router path forwarding is verified by inspecting `$route.params.pathMatch`.
   - Implement: ~25 LOC across the SFC `<script>` + `<template>`.
   - Test: Playwright navigates `/builder/hello-world` and asserts the seeded index page renders; then navigates to `/builder/hello-world/messages/<uuid>` and asserts the detail page renders.
 
-- [ ] 2.4 **Build the textarea-based `ApplicationEditor.vue`**
+- [x] 2.4 **Build the textarea-based `ApplicationEditor.vue`**
   - spec_ref: REQ-OBR-005
   - files: `src/views/ApplicationEditor.vue`, `src/store/applications.js`
   - acceptance_criteria: Editor lists Applications via OR REST, opens a JSON textarea bound to the `manifest` blob, validates on Save via `validateManifest` from `@conduction/nextcloud-vue`, surfaces the failing JSON path on validation error, PUTs the blob back to OR REST on success.
@@ -67,13 +67,13 @@
 
 ## 3. Seed Data (ADR-001)
 
-- [ ] 3.1 **Declare `hello-message` schema in `lib/Settings/openbuilt_register.json`**
+- [x] 3.1 **Declare `hello-message` schema in `lib/Settings/openbuilt_register.json`**
   - spec_ref: REQ-OBR-004
   - files: `lib/Settings/openbuilt_register.json`
   - acceptance_criteria: Schema declares `uuid` (UUID-format) plus `title` (required, string) and `body` (string).
   - Implement: declarative schema patch.
 
-- [ ] 3.2 **Ship the seed repair step `lib/Repair/SeedHelloWorld.php`**
+- [x] 3.2 **Ship the seed repair step `lib/Repair/SeedHelloWorld.php`**
   - spec_ref: REQ-OBR-004
   - files: `lib/Repair/SeedHelloWorld.php`, `appinfo/info.xml` (`<repair-steps>` already declares `InitializeSettings`; add `SeedHelloWorld` as a `<post-migration>` step)
   - acceptance_criteria: Seeds one `Application` with `slug: hello-world`, `status: published`, the manifest declared in design.md "Seed Data", plus three `hello-message` sample objects. Idempotent: guarded by an existing-slug check; re-running the repair step on a seeded install is a no-op. The seeded manifest validates against the canonical schema; the repair step calls `ConfigurationService::importFromApp()` (memory rule) for schema registration.
