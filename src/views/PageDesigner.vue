@@ -212,6 +212,7 @@ export default {
 	padding: 8px;
 	min-height: 60vh;
 }
+
 .page-designer__left,
 .page-designer__centre,
 .page-designer__right {
@@ -223,14 +224,17 @@ export default {
 	padding: 8px;
 	background: var(--color-main-background);
 }
+
 .page-designer__centre {
 	min-height: 50vh;
 }
+
 .page-designer__sub-editor {
 	display: flex;
 	flex: 1;
 	flex-direction: column;
 }
+
 .page-designer__empty {
 	display: flex;
 	flex: 1;
@@ -239,6 +243,7 @@ export default {
 	color: var(--color-text-maxcontrast);
 	font-size: 14px;
 }
+
 .page-designer__preview-fallback {
 	display: flex;
 	flex-direction: column;
@@ -248,18 +253,21 @@ export default {
 	border-radius: var(--border-radius);
 	background: var(--color-background-hover);
 }
+
 .page-designer__preview-fallback h4,
 .page-designer__errors h4 {
 	margin: 0;
 	font-size: 14px;
 	font-weight: 600;
 }
+
 .page-designer__preview-message {
 	margin: 0;
 	font-size: 12px;
 	color: var(--color-text-maxcontrast);
 	line-height: 1.4;
 }
+
 .page-designer__preview-btn {
 	align-self: flex-start;
 	padding: 4px 10px;
@@ -269,15 +277,18 @@ export default {
 	color: var(--color-main-text);
 	cursor: pointer;
 }
+
 .page-designer__preview-btn[disabled] {
 	cursor: not-allowed;
 	opacity: 0.6;
 }
+
 .page-designer__errors {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 }
+
 .page-designer__error-list {
 	list-style: none;
 	padding: 0;
@@ -286,6 +297,7 @@ export default {
 	flex-direction: column;
 	gap: 4px;
 }
+
 .page-designer__error-row {
 	margin: 0;
 	padding: 4px 6px;
@@ -295,6 +307,7 @@ export default {
 	font-size: 12px;
 	color: var(--color-main-text);
 }
+
 .page-designer__ok {
 	margin: 0;
 	font-size: 12px;

@@ -167,20 +167,24 @@ export default {
 	flex-direction: column;
 	gap: 8px;
 }
+
 .application-editor__header {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 }
+
 .application-editor__header h2 {
 	margin: 0;
 	font-size: 22px;
 	font-weight: 600;
 }
+
 .application-editor__status {
 	font-size: 13px;
 	color: var(--color-text-maxcontrast);
 }
+
 .application-editor__error {
 	margin: 0;
 	font-size: 13px;
@@ -190,14 +194,17 @@ export default {
 	border-left: 3px solid var(--color-error);
 	border-radius: var(--border-radius);
 }
+
 .application-editor__toolbar {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 }
+
 .application-editor__spacer {
 	flex: 1;
 }
+
 .application-editor__tab {
 	padding: 6px 12px;
 	border: 1px solid var(--color-border);
@@ -207,16 +214,19 @@ export default {
 	cursor: pointer;
 	font-size: 13px;
 }
+
 .application-editor__tab--active {
 	background: var(--color-primary-element-light);
 	border-color: var(--color-primary-element);
 	font-weight: 600;
 }
+
 .application-editor__dirty {
 	font-size: 12px;
 	color: var(--color-warning, var(--color-text-maxcontrast));
 	font-style: italic;
 }
+
 .application-editor__save {
 	padding: 6px 14px;
 	border: 1px solid var(--color-primary-element);
@@ -227,20 +237,24 @@ export default {
 	font-size: 13px;
 	font-weight: 600;
 }
+
 .application-editor__save[disabled] {
 	cursor: not-allowed;
 	opacity: 0.6;
 }
+
 .application-editor__pane {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 }
+
 .application-editor__hint {
 	margin: 0;
 	font-size: 12px;
 	color: var(--color-text-maxcontrast);
 }
+
 .application-editor__textarea {
 	min-height: 60vh;
 	font-family: monospace;
@@ -251,6 +265,7 @@ export default {
 	background: var(--color-main-background);
 	color: var(--color-main-text);
 }
+
 .application-editor__empty {
 	padding: 16px;
 	color: var(--color-text-maxcontrast);
