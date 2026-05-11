@@ -49,11 +49,17 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Controller for the OpenBuilt manifest endpoint and template clone action.
+ *
+ * Two public endpoints share a small set of OR helpers (normaliseObject,
+ * lookupOne, rewriteSchemaRefs). The class crosses PHPMD's default
+ * ExcessiveClassComplexity threshold by design — splitting it would only
+ * introduce indirection without improving readability.
+ *
+ * @SuppressWarnings(PHPMD.ExcessiveClassComplexity)
+ * @SuppressWarnings(PHPMD.CouplingBetweenObjects)
  */
 class ApplicationsController extends Controller
 {
-
-
     /**
      * Constructor.
      *
@@ -77,7 +83,6 @@ class ApplicationsController extends Controller
         parent::__construct(appName: Application::APP_ID, request: $request);
 
     }//end __construct()
-
 
     /**
      * Return the stored manifest JSON blob for a given virtual-app slug.
@@ -172,7 +177,6 @@ class ApplicationsController extends Controller
 
     }//end getManifest()
 
-
     /**
      * Clone an Application from a template.
      *
@@ -190,130 +194,258 @@ class ApplicationsController extends Controller
     #[NoAdminRequired]
     public function createFromTemplate(string $templateSlug): JSONResponse
     {
-        // 1. Auth check.
+        // 1. Auth + request validation.
         $user = $this->userSession->getUser();
         if ($user === null) {
-            return new JSONResponse(
-                data: ['error' => 'unauthenticated'],
-                statusCode: Http::STATUS_UNAUTHORIZED
-            );
+            return $this->errorResponse(code: 'unauthenticated', status: Http::STATUS_UNAUTHORIZED);
         }
 
         $ownerUid = $user->getUID();
 
-        // 2. Validate request body.
         $validation = $this->validateCloneRequest(body: $this->request->getParams());
-        if (is_array($validation) === true) {
+        if (isset($validation['error']) === true) {
             return new JSONResponse(data: $validation['error'], statusCode: $validation['status']);
         }
 
         [$name, $newSlug] = $validation;
 
-        // 3. Resolve shared register + schemas.
-        try {
-            $sharedRegisterId    = $this->registerMapper->find('openbuilt', _multitenancy: false)->getId();
-            $templateSchemaId    = $this->schemaMapper->find('application-template', _multitenancy: false)->getId();
-            $applicationSchemaId = $this->schemaMapper->find('application', _multitenancy: false)->getId();
-        } catch (\Throwable $e) {
-            $this->logger->error('OpenBuilt: register/schema resolution failed', ['exception' => $e->getMessage()]);
-            return new JSONResponse(
-                data: ['error' => 'not_configured', 'detail' => 'OpenBuilt register/schemas not initialised'],
-                statusCode: Http::STATUS_SERVICE_UNAVAILABLE
+        // 2. Resolve shared register + schemas.
+        $ctx = $this->resolveSharedContext();
+        if ($ctx === null) {
+            return $this->errorResponse(
+                code: 'not_configured',
+                detail: 'OpenBuilt register/schemas not initialised',
+                status: Http::STATUS_SERVICE_UNAVAILABLE
             );
         }
 
-        // 4. Lookup template.
+        // 3. Lookup template + slug-collision check (scoped to caller's UID).
         $template = $this->lookupOne(
-            registerId: $sharedRegisterId,
-            schemaId: $templateSchemaId,
+            registerId: $ctx['register'],
+            schemaId: $ctx['templateSchema'],
             slug: $templateSlug
         );
         if ($template === null) {
-            return new JSONResponse(
-                data: ['error' => 'template_not_found', 'slug' => $templateSlug],
-                statusCode: Http::STATUS_NOT_FOUND
+            return $this->errorResponse(
+                code: 'template_not_found',
+                detail: $templateSlug,
+                status: Http::STATUS_NOT_FOUND
             );
         }
 
-        // 5. Slug-collision check, scoped to the caller's UID (multi-user isolation).
         $existing = $this->lookupOne(
-            registerId: $sharedRegisterId,
-            schemaId: $applicationSchemaId,
+            registerId: $ctx['register'],
+            schemaId: $ctx['applicationSchema'],
             slug: $newSlug,
             owner: $ownerUid
         );
         if ($existing !== null) {
-            return new JSONResponse(
-                data: ['error' => 'slug_collision', 'slug' => $newSlug],
-                statusCode: Http::STATUS_CONFLICT
+            return $this->errorResponse(
+                code: 'slug_collision',
+                detail: $newSlug,
+                status: Http::STATUS_CONFLICT
             );
         }
 
-        // 6. Build rewrite map (source-slug → prefixed-slug) and rewrite manifest refs.
+        // 4. Prepare manifest + companion-schema clone map.
         $companionInput = $this->extractCompanionSchemas(template: $template);
         $rewriteMap     = $this->buildRewriteMap(companions: $companionInput, newSlug: $newSlug);
-        $manifestRaw    = ($template['manifest'] ?? null);
-        $manifest       = is_array($manifestRaw) === true ? $manifestRaw : [];
-        $manifest       = $this->rewriteSchemaRefs(node: $manifest, map: $rewriteMap);
+        $manifest       = $this->buildClonedManifest(template: $template, rewriteMap: $rewriteMap);
 
-        // 7. Provision per-app register + clone companion schemas into it.
-        try {
-            $perAppRegister = $this->provisionPerAppRegister(newSlug: $newSlug, ownerUid: $ownerUid);
-            $createdSchemaIds = $this->cloneCompanionSchemas(
-                companions: $companionInput,
-                rewriteMap: $rewriteMap,
-                perAppRegister: $perAppRegister
-            );
-        } catch (\Throwable $e) {
-            $this->logger->error('OpenBuilt: companion-schema clone failed', ['exception' => $e->getMessage()]);
-            return new JSONResponse(
-                data: ['error' => 'clone_failed', 'detail' => 'Failed to provision per-app register/schemas'],
-                statusCode: Http::STATUS_INTERNAL_SERVER_ERROR
-            );
+        // 5. Provision per-app register + clone companion schemas into it.
+        $cloneResult = $this->provisionPerAppArtifacts(
+            newSlug: $newSlug,
+            ownerUid: $ownerUid,
+            companions: $companionInput,
+            rewriteMap: $rewriteMap
+        );
+        if (isset($cloneResult['error']) === true) {
+            return new JSONResponse(data: $cloneResult['error'], statusCode: $cloneResult['status']);
         }
 
-        // 8. Create the Application record (in shared register), tagged with owner.
-        try {
-            $application = [
-                'name'           => $name,
-                'slug'           => $newSlug,
-                'status'         => 'draft',
-                'version'        => '0.1.0',
-                'owner'          => $ownerUid,
-                'manifest'       => $manifest,
-                'templateOrigin' => [
-                    'slug'    => (string) ($template['slug'] ?? $templateSlug),
-                    'version' => (string) ($template['version'] ?? ''),
-                ],
-            ];
-            $created = $this->objectService->saveObject(
-                object: $application,
-                register: $sharedRegisterId,
-                schema: $applicationSchemaId
-            );
-        } catch (\Throwable $e) {
-            $this->logger->error('OpenBuilt: application save failed', ['exception' => $e->getMessage()]);
-            return new JSONResponse(
-                data: ['error' => 'clone_failed', 'detail' => $e->getMessage()],
-                statusCode: Http::STATUS_INTERNAL_SERVER_ERROR
-            );
+        // 6. Persist the Application record (in shared register), tagged with owner.
+        $persistResult = $this->persistApplication(
+            name: $name,
+            newSlug: $newSlug,
+            ownerUid: $ownerUid,
+            manifest: $manifest,
+            template: $template,
+            templateSlug: $templateSlug,
+            ctx: $ctx
+        );
+        if (isset($persistResult['error']) === true) {
+            return new JSONResponse(data: $persistResult['error'], statusCode: $persistResult['status']);
         }
-
-        $createdArray = $this->normaliseObject(object: $created);
-        $uuid         = ($createdArray['uuid'] ?? $createdArray['id'] ?? null);
 
         return new JSONResponse(
             data: [
-                'uuid'             => $uuid,
+                'uuid'             => $persistResult['uuid'],
                 'slug'             => $newSlug,
-                'register'         => $perAppRegister->getSlug(),
-                'companionSchemas' => $createdSchemaIds,
+                'register'         => $cloneResult['register']->getSlug(),
+                'companionSchemas' => $cloneResult['schemaIds'],
             ],
             statusCode: Http::STATUS_CREATED
         );
 
     }//end createFromTemplate()
 
+    /**
+     * Build a uniform error response.
+     *
+     * @param string      $code   The error code
+     * @param string|null $detail Optional detail message
+     * @param int         $status The HTTP status code
+     *
+     * @return JSONResponse
+     */
+    private function errorResponse(string $code, ?string $detail=null, int $status=Http::STATUS_BAD_REQUEST): JSONResponse
+    {
+        $body = ['error' => $code];
+        if ($detail !== null) {
+            $body['detail'] = $detail;
+        }
+
+        return new JSONResponse(data: $body, statusCode: $status);
+
+    }//end errorResponse()
+
+    /**
+     * Resolve the shared register + schema IDs (template, application).
+     *
+     * @return array{register:int,templateSchema:int,applicationSchema:int}|null
+     */
+    private function resolveSharedContext(): ?array
+    {
+        try {
+            return [
+                'register'          => $this->registerMapper->find('openbuilt', _multitenancy: false)->getId(),
+                'templateSchema'    => $this->schemaMapper->find('application-template', _multitenancy: false)->getId(),
+                'applicationSchema' => $this->schemaMapper->find('application', _multitenancy: false)->getId(),
+            ];
+        } catch (\Throwable $e) {
+            $this->logger->error(
+                'OpenBuilt: register/schema resolution failed',
+                ['exception' => $e->getMessage()]
+            );
+            return null;
+        }
+
+    }//end resolveSharedContext()
+
+    /**
+     * Build the cloned manifest (apply rewrite map to template manifest).
+     *
+     * @param array<string,mixed>  $template   The template record
+     * @param array<string,string> $rewriteMap Source-slug → prefixed-slug map
+     *
+     * @return array<string,mixed>
+     */
+    private function buildClonedManifest(array $template, array $rewriteMap): array
+    {
+        $manifestRaw = ($template['manifest'] ?? null);
+        $manifest    = [];
+        if (is_array($manifestRaw) === true) {
+            $manifest = $manifestRaw;
+        }
+
+        $rewritten = $this->rewriteSchemaRefs(node: $manifest, map: $rewriteMap);
+        if (is_array($rewritten) === true) {
+            return $rewritten;
+        }
+
+        return [];
+
+    }//end buildClonedManifest()
+
+    /**
+     * Provision per-app register + clone companion schemas.
+     *
+     * @param string                         $newSlug    The new application slug
+     * @param string                         $ownerUid   The owner UID
+     * @param array<int,array<string,mixed>> $companions The companion schema blobs
+     * @param array<string,string>           $rewriteMap Source-slug → prefixed-slug map
+     *
+     * @return array{register:\OCA\OpenRegister\Db\Register,schemaIds:array<int,int>}|array{error:array<string,mixed>,status:int}
+     */
+    private function provisionPerAppArtifacts(
+        string $newSlug,
+        string $ownerUid,
+        array $companions,
+        array $rewriteMap
+    ): array {
+        try {
+            $register  = $this->provisionPerAppRegister(newSlug: $newSlug, ownerUid: $ownerUid);
+            $schemaIds = $this->cloneCompanionSchemas(
+                companions: $companions,
+                rewriteMap: $rewriteMap,
+                perAppRegister: $register
+            );
+
+            return ['register' => $register, 'schemaIds' => $schemaIds];
+        } catch (\Throwable $e) {
+            $this->logger->error(
+                'OpenBuilt: companion-schema clone failed',
+                ['exception' => $e->getMessage()]
+            );
+            return [
+                'error'  => ['error' => 'clone_failed', 'detail' => 'Failed to provision per-app register/schemas'],
+                'status' => Http::STATUS_INTERNAL_SERVER_ERROR,
+            ];
+        }
+
+    }//end provisionPerAppArtifacts()
+
+    /**
+     * Persist the cloned Application record.
+     *
+     * @param string                                                       $name         Human-readable name
+     * @param string                                                       $newSlug      The new application slug
+     * @param string                                                       $ownerUid     The owner UID (multi-user isolation)
+     * @param array<string,mixed>                                          $manifest     The cloned manifest
+     * @param array<string,mixed>                                          $template     The source template record
+     * @param string                                                       $templateSlug The source template slug
+     * @param array{register:int,templateSchema:int,applicationSchema:int} $ctx          Shared context
+     *
+     * @return array{uuid:string|null}|array{error:array<string,mixed>,status:int}
+     */
+    private function persistApplication(
+        string $name,
+        string $newSlug,
+        string $ownerUid,
+        array $manifest,
+        array $template,
+        string $templateSlug,
+        array $ctx
+    ): array {
+        try {
+            $created = $this->objectService->saveObject(
+                object: [
+                    'name'           => $name,
+                    'slug'           => $newSlug,
+                    'status'         => 'draft',
+                    'version'        => '0.1.0',
+                    'owner'          => $ownerUid,
+                    'manifest'       => $manifest,
+                    'templateOrigin' => [
+                        'slug'    => (string) ($template['slug'] ?? $templateSlug),
+                        'version' => (string) ($template['version'] ?? ''),
+                    ],
+                ],
+                register: $ctx['register'],
+                schema: $ctx['applicationSchema']
+            );
+        } catch (\Throwable $e) {
+            $this->logger->error('OpenBuilt: application save failed', ['exception' => $e->getMessage()]);
+            return [
+                'error'  => ['error' => 'clone_failed', 'detail' => $e->getMessage()],
+                'status' => Http::STATUS_INTERNAL_SERVER_ERROR,
+            ];
+        }//end try
+
+        $createdArray = $this->normaliseObject(object: $created);
+        return ['uuid' => ($createdArray['uuid'] ?? $createdArray['id'] ?? null)];
+
+    }//end persistApplication()
 
     /**
      * Validate the clone-from-template request body.
@@ -346,7 +478,6 @@ class ApplicationsController extends Controller
 
     }//end validateCloneRequest()
 
-
     /**
      * Extract companionSchemas array from a template record.
      *
@@ -370,7 +501,6 @@ class ApplicationsController extends Controller
 
     }//end extractCompanionSchemas()
 
-
     /**
      * Build the source-slug → prefixed-slug rewrite map.
      *
@@ -383,14 +513,13 @@ class ApplicationsController extends Controller
     {
         $map = [];
         foreach ($companions as $companion) {
-            $sourceSlug = (string) $companion['slug'];
+            $sourceSlug       = (string) $companion['slug'];
             $map[$sourceSlug] = $newSlug.'-'.$sourceSlug;
         }
 
         return $map;
 
     }//end buildRewriteMap()
-
 
     /**
      * Provision (or fetch existing) the per-app register `openbuilt-{newSlug}`.
@@ -424,7 +553,6 @@ class ApplicationsController extends Controller
         );
 
     }//end provisionPerAppRegister()
-
 
     /**
      * Clone companion schemas into the per-app register.
@@ -474,7 +602,6 @@ class ApplicationsController extends Controller
 
     }//end cloneCompanionSchemas()
 
-
     /**
      * Recursively rewrite manifest page-config schema references.
      *
@@ -507,7 +634,6 @@ class ApplicationsController extends Controller
 
     }//end rewriteSchemaRefs()
 
-
     /**
      * Look up a single object by slug (optionally scoped by owner).
      *
@@ -522,7 +648,7 @@ class ApplicationsController extends Controller
         int | string $registerId,
         int | string $schemaId,
         string $slug,
-        ?string $owner = null
+        ?string $owner=null
     ): ?array {
         try {
             $query = [
@@ -547,10 +673,9 @@ class ApplicationsController extends Controller
         } catch (\Throwable $e) {
             $this->logger->warning('OpenBuilt: lookup failed', ['exception' => $e->getMessage()]);
             return null;
-        }
+        }//end try
 
     }//end lookupOne()
-
 
     /**
      * Coerce an OR result entry (ObjectEntity or array) to a plain associative array.
@@ -582,6 +707,4 @@ class ApplicationsController extends Controller
         return [];
 
     }//end normaliseObject()
-
-
 }//end class

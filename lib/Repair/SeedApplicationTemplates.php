@@ -36,6 +36,8 @@ use OCP\App\IAppManager;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
+use Throwable;
 
 /**
  * Seed Conduction-curated ApplicationTemplate records.
@@ -83,7 +85,6 @@ class SeedApplicationTemplates implements IRepairStep
     ) {
     }//end __construct()
 
-
     /**
      * Get the name of this repair step.
      *
@@ -93,7 +94,6 @@ class SeedApplicationTemplates implements IRepairStep
     {
         return 'Seed Conduction-curated OpenBuilt ApplicationTemplate records';
     }//end getName()
-
 
     /**
      * Run the repair step — seed each fixture if its slug is not present.
@@ -116,13 +116,13 @@ class SeedApplicationTemplates implements IRepairStep
         foreach (self::TEMPLATE_SLUGS as $slug) {
             $fixturePath = $fixturesDir.'/'.$slug.'.json';
             if (is_file($fixturePath) === false) {
-                throw new \RuntimeException('Missing template fixture: '.$fixturePath);
+                throw new RuntimeException('Missing template fixture: '.$fixturePath);
             }
 
             $raw  = file_get_contents($fixturePath);
             $data = json_decode($raw, true);
             if (is_array($data) === false) {
-                throw new \RuntimeException('Invalid JSON in template fixture: '.$fixturePath);
+                throw new RuntimeException('Invalid JSON in template fixture: '.$fixturePath);
             }
 
             $this->validateFixture(data: $data, slug: $slug);
@@ -140,12 +140,12 @@ class SeedApplicationTemplates implements IRepairStep
                 );
                 $output->info('Seeded ApplicationTemplate: '.$slug);
                 ++$seeded;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 $this->logger->error(
                     'OpenBuilt: failed to seed template',
                     ['slug' => $slug, 'exception' => $e->getMessage()]
                 );
-                throw new \RuntimeException(
+                throw new RuntimeException(
                     'Failed to seed template "'.$slug.'": '.$e->getMessage(),
                     0,
                     $e
@@ -156,7 +156,6 @@ class SeedApplicationTemplates implements IRepairStep
         $output->info('OpenBuilt template seeding complete. New: '.$seeded);
     }//end run()
 
-
     /**
      * Validate a fixture has the minimum required fields per REQ-OBTC-009.
      *
@@ -165,32 +164,31 @@ class SeedApplicationTemplates implements IRepairStep
      *
      * @return void
      *
-     * @throws \RuntimeException When a required field is missing or empty.
+     * @throws RuntimeException When a required field is missing or empty.
      */
     private function validateFixture(array $data, string $slug): void
     {
         $required = ['slug', 'title', 'description', 'useCase', 'category', 'manifest', 'version'];
         foreach ($required as $key) {
             if (isset($data[$key]) === false || $data[$key] === '' || $data[$key] === null) {
-                throw new \RuntimeException('Template "'.$slug.'" missing required field: '.$key);
+                throw new RuntimeException('Template "'.$slug.'" missing required field: '.$key);
             }
         }
 
         if (($data['slug'] ?? '') !== $slug) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Template fixture filename "'.$slug.'.json" does not match its slug "'.($data['slug'] ?? '').'".'
             );
         }
 
         if (is_array($data['manifest']) === false || isset($data['manifest']['pages']) === false) {
-            throw new \RuntimeException('Template "'.$slug.'" manifest is missing pages.');
+            throw new RuntimeException('Template "'.$slug.'" manifest is missing pages.');
         }
 
         if (in_array($data['category'], self::ALLOWED_CATEGORIES, true) === false) {
-            throw new \RuntimeException('Template "'.$slug.'" has unknown category: '.$data['category']);
+            throw new RuntimeException('Template "'.$slug.'" has unknown category: '.$data['category']);
         }
     }//end validateFixture()
-
 
     /**
      * Find an existing template by slug.
@@ -224,18 +222,20 @@ class SeedApplicationTemplates implements IRepairStep
 
             if (is_object($first) === true && method_exists($first, 'jsonSerialize') === true) {
                 $serialised = $first->jsonSerialize();
-                return is_array($serialised) === true ? $serialised : null;
+                if (is_array($serialised) === true) {
+                    return $serialised;
+                }
+
+                return null;
             }
 
             return null;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->warning(
                 'OpenBuilt: template lookup failed — treating as absent',
                 ['slug' => $slug, 'exception' => $e->getMessage()]
             );
             return null;
-        }
+        }//end try
     }//end findBySlug()
-
-
 }//end class
