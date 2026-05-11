@@ -99,7 +99,7 @@
 			<legend>{{ t('openbuilt', 'Fields') }}</legend>
 			<FormFieldBuilder
 				:model-value="config.fields || []"
-				@update:model-value="update('fields', $event)" />
+				@update:modelValue="update('fields', $event)" />
 		</fieldset>
 	</div>
 </template>

@@ -47,14 +47,14 @@
 			<ColumnBuilder
 				:model-value="config.columns || []"
 				:schema-properties="schemaProperties"
-				@update:model-value="update('columns', $event)" />
+				@update:modelValue="update('columns', $event)" />
 		</fieldset>
 
 		<fieldset class="index-page-editor__fieldset">
 			<legend>{{ t('openbuilt', 'Actions') }}</legend>
 			<ActionBuilder
 				:model-value="config.actions || []"
-				@update:model-value="update('actions', $event)" />
+				@update:modelValue="update('actions', $event)" />
 		</fieldset>
 
 		<fieldset class="index-page-editor__fieldset">
@@ -69,7 +69,7 @@
 			<SidebarSectionBuilder
 				v-if="sidebarEnabled"
 				:model-value="(config.sidebar && config.sidebar.columnGroups) || []"
-				@update:model-value="updateSidebar('columnGroups', $event)" />
+				@update:modelValue="updateSidebar('columnGroups', $event)" />
 		</fieldset>
 	</div>
 </template>

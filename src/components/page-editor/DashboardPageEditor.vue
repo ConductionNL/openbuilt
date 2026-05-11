@@ -13,14 +13,14 @@
 			<legend>{{ t('openbuilt', 'Widgets') }}</legend>
 			<WidgetBuilder
 				:model-value="config.widgets || []"
-				@update:model-value="update('widgets', $event)" />
+				@update:modelValue="update('widgets', $event)" />
 		</fieldset>
 
 		<fieldset class="dashboard-page-editor__fieldset">
 			<legend>{{ t('openbuilt', 'Layout') }}</legend>
 			<LayoutItemBuilder
 				:model-value="config.layout || []"
-				@update:model-value="update('layout', $event)" />
+				@update:modelValue="update('layout', $event)" />
 		</fieldset>
 	</div>
 </template>

@@ -93,7 +93,7 @@
 				</label>
 				<SidebarTabBuilder
 					:model-value="(config.sidebar && config.sidebar.tabs) || []"
-					@update:model-value="updateSidebarKey('tabs', $event)" />
+					@update:modelValue="updateSidebarKey('tabs', $event)" />
 			</div>
 		</fieldset>
 
@@ -101,7 +101,7 @@
 			<legend>{{ t('openbuilt', 'sidebarProps.tabs (alternate path)') }}</legend>
 			<SidebarTabBuilder
 				:model-value="(config.sidebarProps && config.sidebarProps.tabs) || []"
-				@update:model-value="updateSidebarPropsTabs($event)" />
+				@update:modelValue="updateSidebarPropsTabs($event)" />
 		</fieldset>
 	</div>
 </template>
