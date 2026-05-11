@@ -75,11 +75,10 @@
 </template>
 
 <script>
-import { generateUrl } from '@nextcloud/router'
-import axios from '@nextcloud/axios'
 import ColumnBuilder from './fields/ColumnBuilder.vue'
 import ActionBuilder from './fields/ActionBuilder.vue'
 import SidebarSectionBuilder from './fields/SidebarSectionBuilder.vue'
+import { useRegisterPicker } from '../../composables/useRegisterPicker.js'
 
 export default {
 	name: 'IndexPageEditor',
@@ -93,8 +92,18 @@ export default {
 			type: Object,
 			default: () => ({}),
 		},
+		// Current Application slug. Drives the hybrid register model so the
+		// register picker hoists `openbuilt-{slug}` to the top of the list.
+		appSlug: {
+			type: String,
+			default: '',
+		},
 	},
 	emits: ['update:config'],
+	setup(props) {
+		const picker = useRegisterPicker({ appSlug: props.appSlug })
+		return { picker }
+	},
 	data() {
 		return {
 			registers: [],
@@ -170,36 +179,13 @@ export default {
 			this.$emit('update:config', next)
 		},
 		async fetchRegisters() {
-			try {
-				const url = generateUrl('/apps/openregister/api/registers')
-				const { data } = await axios.get(url)
-				this.registers = (data && (data.results || data)) || []
-				if (!Array.isArray(this.registers)) {
-					this.registers = []
-				}
-			} catch {
-				this.registers = []
-			}
+			this.registers = await this.picker.fetchRegisters()
 		},
 		async fetchSchemas(register) {
-			try {
-				const url = generateUrl(`/apps/openregister/api/registers/${register}/schemas`)
-				const { data } = await axios.get(url)
-				const list = (data && (data.results || data)) || []
-				this.schemas = Array.isArray(list) ? list : []
-			} catch {
-				this.schemas = []
-			}
+			this.schemas = await this.picker.fetchSchemas(register)
 		},
 		async fetchSchemaProperties(register, schema) {
-			try {
-				const url = generateUrl(`/apps/openregister/api/registers/${register}/schemas/${schema}`)
-				const { data } = await axios.get(url)
-				const props = (data && data.properties) || (data && data.schema && data.schema.properties) || {}
-				this.schemaProperties = props
-			} catch {
-				this.schemaProperties = {}
-			}
+			this.schemaProperties = await this.picker.fetchSchemaProperties(register, schema)
 		},
 	},
 }

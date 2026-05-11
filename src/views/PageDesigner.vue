@@ -26,6 +26,8 @@
 					:is="subEditorFor(selectedPage.type)"
 					:config="selectedPage.config || {}"
 					:page-type="selectedPage.type"
+					:app-slug="slug"
+					:parent-route="selectedPage.route || ''"
 					@update:config="onConfigUpdate" />
 			</div>
 			<div v-else class="page-designer__empty">

@@ -4,16 +4,18 @@
  * Application + manifest state shared between the Design and Raw JSON
  * tabs (REQ-OBPD-010 / MODIFIED REQ-OBR-005).
  *
+ * CRUD is delegated to the shared @conduction/nextcloud-vue `useObjectStore`
+ * (registered as type `application` against the shared `openbuilt` register
+ * in store/store.js). This store owns only the editor-local UI state
+ * (manifest draft, raw JSON, dirty flag, validation mirror).
+ *
  * Round-trip-lossless contract (design.md Risk mitigation):
  * The original Application object is stored unmodified in `original`;
  * UI-controlled manifest fields are surgical-merged on `serialize()` so
  * externally authored keys the editor does not understand are preserved.
  */
 import { defineStore } from 'pinia'
-import { generateUrl } from '@nextcloud/router'
-import axios from '@nextcloud/axios'
-
-const APPLICATION_PATH = '/apps/openregister/api/objects/openbuilt/application'
+import { useObjectStore } from './object.js'
 
 export const useApplicationEditorStore = defineStore('applicationEditor', {
 	state: () => ({
@@ -21,7 +23,7 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 		original: null,
 		// In-flight manifest blob (mutable; what the editors author).
 		manifest: null,
-		// Loading / saving flags.
+		// Loading / saving flags (mirrored from the shared object store).
 		loading: false,
 		saving: false,
 		// Last validation result errors (mirrored from validator composable).
@@ -66,8 +68,8 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 
 	actions: {
 		/**
-		 * Load an Application by its UUID. Populates `original`, `manifest`,
-		 * and `rawJsonDraft`.
+		 * Load an Application by its UUID via the shared object store.
+		 * Populates `original`, `manifest`, and `rawJsonDraft`.
 		 *
 		 * @param {string} uuid - Application UUID.
 		 */
@@ -75,10 +77,13 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 			this.loading = true
 			this.loadError = ''
 			try {
-				const url = generateUrl(`${APPLICATION_PATH}/${uuid}`)
-				const { data } = await axios.get(url)
-				// OR may wrap or pass-through; normalise either shape.
-				const app = (data && data.uuid) ? data : ((data && data.results && data.results[0]) || data)
+				const objectStore = useObjectStore()
+				const app = await objectStore.fetchObject('application', uuid)
+				if (!app) {
+					const err = objectStore.getError('application')
+					this.loadError = `Failed to load application: ${err && err.message ? err.message : 'not found'}`
+					return
+				}
 				this.original = app
 				this.manifest = JSON.parse(JSON.stringify(app.manifest || {}))
 				this.rawJsonDraft = JSON.stringify(this.manifest, null, 2)
@@ -93,13 +98,13 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 		/**
 		 * List Applications (lightweight; for picker in editor).
 		 *
-		 * @return {Array} list of Applications.
+		 * @return {Promise<Array>} list of Applications.
 		 */
 		async listApplications() {
 			try {
-				const url = generateUrl(APPLICATION_PATH)
-				const { data } = await axios.get(url, { params: { _limit: 100 } })
-				return (data && data.results) ? data.results : (Array.isArray(data) ? data : [])
+				const objectStore = useObjectStore()
+				const results = await objectStore.fetchCollection('application', { _limit: 100 })
+				return results || []
 			} catch (e) {
 				this.loadError = `Failed to list applications: ${e && e.message ? e.message : e}`
 				return []
@@ -154,7 +159,7 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 		 * and overwrite them in the original Application; preserve every
 		 * other Application field unmodified (per design.md Risk mitigation).
 		 *
-		 * @return {object} merged Application body suitable for PUT.
+		 * @return {object} merged Application body suitable for save.
 		 */
 		serialize() {
 			const base = this.original ? { ...this.original } : {}
@@ -163,9 +168,11 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 		},
 
 		/**
-		 * Save the current in-flight Application via OR REST.
+		 * Save the current in-flight Application via the shared object store.
 		 * Refuses to save when `this.validationErrors` is non-empty so the
 		 * caller can keep its Save button disabled.
+		 *
+		 * @return {Promise<boolean>} true on success.
 		 */
 		async save() {
 			if (!this.uuid) {
@@ -179,11 +186,18 @@ export const useApplicationEditorStore = defineStore('applicationEditor', {
 			this.saving = true
 			this.saveError = ''
 			try {
-				const url = generateUrl(`${APPLICATION_PATH}/${this.uuid}`)
+				const objectStore = useObjectStore()
 				const body = this.serialize()
-				const { data } = await axios.put(url, body)
-				const fresh = (data && data.uuid) ? data : body
-				this.original = fresh
+				// `saveObject` uses `id` to choose POST vs PUT — copy uuid into id
+				// for the update path since OpenRegister identifies via uuid.
+				const updateBody = { ...body, id: body.id || this.uuid }
+				const saved = await objectStore.saveObject('application', updateBody)
+				if (!saved) {
+					const err = objectStore.getError('application')
+					this.saveError = `Save failed: ${err && err.message ? err.message : 'unknown error'}`
+					return false
+				}
+				this.original = saved
 				this.dirty = false
 				return true
 			} catch (e) {
