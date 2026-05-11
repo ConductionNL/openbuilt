@@ -16,7 +16,8 @@
     "stylelint-fix": "stylelint src/**/*.vue src/**/*.scss src/**/*.css --fix",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "browserslist": [
     "extends @nextcloud/browserslist-config"
