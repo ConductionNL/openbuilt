@@ -23,6 +23,9 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Tests\Unit\Controller;
 
 use OCA\OpenBuilt\Controller\ApplicationsController;
+use OCA\OpenRegister\Db\RegisterMapper;
+use OCA\OpenRegister\Db\SchemaMapper;
+use OCA\OpenRegister\Service\ObjectService;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
@@ -43,11 +46,11 @@ class ApplicationsControllerTest extends TestCase
     private ApplicationsController $controller;
 
     /**
-     * Mock OR ObjectService — typed as object since the real class lives in another app.
+     * Mock OR ObjectService.
      *
-     * @var MockObject
+     * @var ObjectService&MockObject
      */
-    private MockObject $objectService;
+    private ObjectService&MockObject $objectService;
 
     /**
      * Mock logger.
@@ -67,27 +70,23 @@ class ApplicationsControllerTest extends TestCase
 
         $request             = $this->createMock(IRequest::class);
         $this->logger        = $this->createMock(LoggerInterface::class);
-        $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['searchObjects', 'find'])
-            ->getMock();
+        $this->objectService = $this->createMock(ObjectService::class);
 
-        // RegisterMapper + SchemaMapper mocks: both have ->find()->getId() chains used by the controller.
+        // RegisterMapper + SchemaMapper mocks: both expose ->find() returning
+        // an entity with ->getId(). Use mocks against stdClass + addMethods so
+        // we don't depend on the entity hierarchy in this unit test.
         $registerEntity = $this->getMockBuilder(\stdClass::class)
             ->addMethods(['getId'])
             ->getMock();
         $registerEntity->method('getId')->willReturn(926);
-        $registerMapper = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['find'])
-            ->getMock();
+        $registerMapper = $this->createMock(RegisterMapper::class);
         $registerMapper->method('find')->willReturn($registerEntity);
 
         $schemaEntity = $this->getMockBuilder(\stdClass::class)
             ->addMethods(['getId'])
             ->getMock();
         $schemaEntity->method('getId')->willReturn(1635);
-        $schemaMapper = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['find'])
-            ->getMock();
+        $schemaMapper = $this->createMock(SchemaMapper::class);
         $schemaMapper->method('find')->willReturn($schemaEntity);
 
         $this->controller = new ApplicationsController(

@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Tests\Unit\Repair;
 
 use OCA\OpenBuilt\Repair\SeedHelloWorld;
+use OCA\OpenRegister\Service\ObjectService;
 use OCP\Migration\IOutput;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -41,11 +42,13 @@ class SeedHelloWorldTest extends TestCase
     private LoggerInterface&MockObject $logger;
 
     /**
-     * Mock OR ObjectService — typed as object since the real class lives in another app.
+     * Mock OR ObjectService — typed against the stub when OR is not on the
+     * autoload path; against the real class when it is. createMock() yields
+     * a usable double either way.
      *
-     * @var MockObject
+     * @var ObjectService&MockObject
      */
-    private MockObject $objectService;
+    private ObjectService&MockObject $objectService;
 
     /**
      * Mock IOutput.
@@ -65,9 +68,7 @@ class SeedHelloWorldTest extends TestCase
 
         $this->logger        = $this->createMock(LoggerInterface::class);
         $this->output        = $this->createMock(IOutput::class);
-        $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['findAll', 'saveObject'])
-            ->getMock();
+        $this->objectService = $this->createMock(ObjectService::class);
     }//end setUp()
 
     /**
