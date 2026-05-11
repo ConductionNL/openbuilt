@@ -68,13 +68,34 @@ class ApplicationsControllerTest extends TestCase
         $request             = $this->createMock(IRequest::class);
         $this->logger        = $this->createMock(LoggerInterface::class);
         $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['getObjects', 'getObject'])
+            ->addMethods(['searchObjects', 'find'])
             ->getMock();
+
+        // RegisterMapper + SchemaMapper mocks: both have ->find()->getId() chains used by the controller.
+        $registerEntity = $this->getMockBuilder(\stdClass::class)
+            ->addMethods(['getId'])
+            ->getMock();
+        $registerEntity->method('getId')->willReturn(926);
+        $registerMapper = $this->getMockBuilder(\stdClass::class)
+            ->addMethods(['find'])
+            ->getMock();
+        $registerMapper->method('find')->willReturn($registerEntity);
+
+        $schemaEntity = $this->getMockBuilder(\stdClass::class)
+            ->addMethods(['getId'])
+            ->getMock();
+        $schemaEntity->method('getId')->willReturn(1635);
+        $schemaMapper = $this->getMockBuilder(\stdClass::class)
+            ->addMethods(['find'])
+            ->getMock();
+        $schemaMapper->method('find')->willReturn($schemaEntity);
 
         $this->controller = new ApplicationsController(
             request: $request,
             logger: $this->logger,
             objectService: $this->objectService,
+            registerMapper: $registerMapper,
+            schemaMapper: $schemaMapper,
         );
     }//end setUp()
 
@@ -91,10 +112,10 @@ class ApplicationsControllerTest extends TestCase
             'pages'   => [['id' => 'p1', 'route' => '/', 'type' => 'index']],
         ];
 
-        $this->objectService->method('getObjects')
+        $this->objectService->method('searchObjects')
             ->willReturn([['applicationUuid' => 'abc-123']]);
 
-        $this->objectService->method('getObject')
+        $this->objectService->method('find')
             ->willReturn(['manifest' => $manifest]);
 
         $result = $this->controller->getManifest(slug: 'hello-world');
@@ -111,7 +132,7 @@ class ApplicationsControllerTest extends TestCase
      */
     public function testGetManifestReturns404WhenSlugUnknown(): void
     {
-        $this->objectService->method('getObjects')->willReturn([]);
+        $this->objectService->method('searchObjects')->willReturn([]);
 
         $result = $this->controller->getManifest(slug: 'no-such-app');
 
@@ -127,7 +148,7 @@ class ApplicationsControllerTest extends TestCase
      */
     public function testGetManifestReturns500WhenRouteMissingApplicationUuid(): void
     {
-        $this->objectService->method('getObjects')
+        $this->objectService->method('searchObjects')
             ->willReturn([['slug' => 'hello-world']]);
 
         $this->logger->expects(self::atLeastOnce())->method('warning');

@@ -66,7 +66,7 @@ class SeedHelloWorldTest extends TestCase
         $this->logger        = $this->createMock(LoggerInterface::class);
         $this->output        = $this->createMock(IOutput::class);
         $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['getObjects', 'saveObject'])
+            ->addMethods(['findAll', 'saveObject'])
             ->getMock();
     }//end setUp()
 
@@ -93,7 +93,7 @@ class SeedHelloWorldTest extends TestCase
     public function testRunIsIdempotentWhenSeedAlreadyExists(): void
     {
         $this->objectService->expects(self::once())
-            ->method('getObjects')
+            ->method('findAll')
             ->willReturn([['slug' => 'hello-world']]);
 
         $this->objectService->expects(self::never())
@@ -114,7 +114,7 @@ class SeedHelloWorldTest extends TestCase
     public function testRunCreatesApplicationAndThreeMessagesOnFreshInstall(): void
     {
         $this->objectService->expects(self::once())
-            ->method('getObjects')
+            ->method('findAll')
             ->willReturn([]);
 
         $this->objectService->expects(self::exactly(4))

@@ -169,16 +169,50 @@ class SettingsService
             ];
         }
 
+        $configPath = __DIR__.'/../Settings/openbuilt_register.json';
+        if (file_exists($configPath) === false) {
+            $this->logger->error('OpenBuilt: openbuilt_register.json not found at '.$configPath);
+            return [
+                'success' => false,
+                'message' => 'Configuration file openbuilt_register.json not found.',
+            ];
+        }
+
+        $configContent = file_get_contents($configPath);
+        if ($configContent === false) {
+            $this->logger->error('OpenBuilt: failed to read openbuilt_register.json');
+            return [
+                'success' => false,
+                'message' => 'Failed to read configuration file.',
+            ];
+        }
+
+        $configData = json_decode($configContent, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->logger->error('OpenBuilt: failed to parse openbuilt_register.json: '.json_last_error_msg());
+            return [
+                'success' => false,
+                'message' => 'Failed to parse configuration file: '.json_last_error_msg(),
+            ];
+        }
+
+        $configVersion = ($configData['info']['version'] ?? '0.0.0');
+
         try {
             $configurationService = $this->container->get('OCA\OpenRegister\Service\ConfigurationService');
-            $result = $configurationService->importFromApp(appId: Application::APP_ID, force: $force);
+            $result = $configurationService->importFromApp(
+                appId: Application::APP_ID,
+                data: $configData,
+                version: $configVersion,
+                force: $force
+            );
 
             if (empty($result) === false) {
                 $this->logger->info('OpenBuilt: register configuration imported successfully');
                 return [
                     'success' => true,
                     'message' => 'Configuration imported successfully.',
-                    'version' => ($result['version'] ?? 'unknown'),
+                    'version' => ($result['version'] ?? $configVersion),
                 ];
             }
 

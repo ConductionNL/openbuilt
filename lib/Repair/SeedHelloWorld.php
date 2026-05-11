@@ -81,11 +81,15 @@ class SeedHelloWorld implements IRepairStep
 
         try {
             // Idempotency guard — if a hello-world Application already exists, do nothing.
-            $existing = $this->objectService->getObjects(
-                register: 'openbuilt',
-                schema: 'application',
-                filters: ['slug' => self::SEED_SLUG],
-                limit: 1
+            $existing = $this->objectService->findAll(
+                config: [
+                    'filters' => [
+                        'register' => 'openbuilt',
+                        'schema'   => 'application',
+                        'slug'     => self::SEED_SLUG,
+                    ],
+                    'limit'   => 1,
+                ]
             );
 
             if (empty($existing) === false) {
@@ -94,9 +98,11 @@ class SeedHelloWorld implements IRepairStep
             }
 
             // Create the Application object with the canonical hello-world manifest.
-            // The x-openregister-lifecycle.on_transition action on publish upserts
-            // the BuiltAppRoute automatically — no separate save needed here.
-            $this->objectService->saveObject(
+            // NOTE (design.md OQ-1): OR's current x-openregister-lifecycle engine does
+            // not yet support `on_transition.upsert_relation` as a declarative action
+            // that creates a sibling object. Until OR ships that hook we explicitly
+            // create the BuiltAppRoute here. This is the ADR-031 §Exceptions(1) path.
+            $application = $this->objectService->saveObject(
                 object: [
                     'slug'        => self::SEED_SLUG,
                     'name'        => 'Hello World',
@@ -109,7 +115,28 @@ class SeedHelloWorld implements IRepairStep
                 schema: 'application'
             );
 
-            $output->info('Created hello-world Application.');
+            // ObjectEntity exposes its fields via jsonSerialize() (returns an array
+            // including the OR-assigned uuid). __call-based getters like getUuid()
+            // are invisible to method_exists, so we read through the array.
+            // OR places the canonical uuid under @self.id in the serialized shape.
+            $applicationData = $application->jsonSerialize();
+            $applicationSelf = ($applicationData['@self'] ?? []);
+            $applicationUuid = ($applicationSelf['id'] ?? ($applicationSelf['uuid'] ?? $applicationData['uuid'] ?? null));
+
+            $output->info('Created hello-world Application (uuid='.($applicationUuid ?? 'unknown').').');
+
+            // Explicit BuiltAppRoute upkeep — fallback for the missing lifecycle hook.
+            if ($applicationUuid !== null) {
+                $this->objectService->saveObject(
+                    object: [
+                        'slug'            => self::SEED_SLUG,
+                        'applicationUuid' => $applicationUuid,
+                    ],
+                    register: 'openbuilt',
+                    schema: 'built-app-route'
+                );
+                $output->info('Created BuiltAppRoute for hello-world.');
+            }
 
             // Seed three sample HelloMessage objects.
             foreach ($this->buildSampleMessages() as $message) {

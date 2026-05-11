@@ -28,6 +28,8 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Controller;
 
 use OCA\OpenBuilt\AppInfo\Application;
+use OCA\OpenRegister\Db\RegisterMapper;
+use OCA\OpenRegister\Db\SchemaMapper;
 use OCA\OpenRegister\Service\ObjectService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -45,9 +47,11 @@ class ApplicationsController extends Controller
     /**
      * Constructor.
      *
-     * @param IRequest        $request       The current HTTP request
-     * @param LoggerInterface $logger        PSR logger for diagnostics
-     * @param ObjectService   $objectService OpenRegister object service (hard dep via info.xml)
+     * @param IRequest        $request        The current HTTP request
+     * @param LoggerInterface $logger         PSR logger for diagnostics
+     * @param ObjectService   $objectService  OpenRegister object service (hard dep via info.xml)
+     * @param RegisterMapper  $registerMapper Resolves slugs/UUIDs to numeric register IDs
+     * @param SchemaMapper    $schemaMapper   Resolves slugs/UUIDs to numeric schema IDs
      *
      * @return void
      */
@@ -55,6 +59,8 @@ class ApplicationsController extends Controller
         IRequest $request,
         private readonly LoggerInterface $logger,
         private readonly ObjectService $objectService,
+        private readonly RegisterMapper $registerMapper,
+        private readonly SchemaMapper $schemaMapper,
     ) {
         parent::__construct(appName: Application::APP_ID, request: $request);
     }//end __construct()
@@ -75,12 +81,26 @@ class ApplicationsController extends Controller
     public function getManifest(string $slug): JSONResponse
     {
         try {
+            // Resolve register + schema slugs to numeric IDs. OR's searchObjects
+            // expects numeric IDs in @self; the slug-resolution shortcut isn't
+            // applied at this layer (verified during smoke-test 2026-05-11).
+            // _multitenancy=false bypasses the org filter on the LOOKUP only —
+            // object-level multitenancy is still enforced via searchObjects below.
+            $registerId  = $this->registerMapper->find('openbuilt', _multitenancy: false)->getId();
+            $routeSchema = $this->schemaMapper->find('built-app-route', _multitenancy: false)->getId();
+
             // Step 1 — resolve slug → applicationUuid via the BuiltAppRoute index.
-            $routeResults = $this->objectService->getObjects(
-                register: 'openbuilt',
-                schema: 'built-app-route',
-                filters: ['slug' => $slug],
-                limit: 1
+            // Per OR's ObjectService::searchObjects: query shape is
+            // { '@self': { register, schema, ... }, <field>: <value>, ... }
+            // where @self holds metadata filters and direct keys filter JSON-payload fields.
+            $routeResults = $this->objectService->searchObjects(
+                query: [
+                    '@self' => [
+                        'register' => $registerId,
+                        'schema'   => $routeSchema,
+                    ],
+                    'slug'  => $slug,
+                ]
             );
 
             if (empty($routeResults) === true) {
@@ -91,7 +111,9 @@ class ApplicationsController extends Controller
                 );
             }
 
-            $applicationUuid = ($routeResults[0]['applicationUuid'] ?? null);
+            // FindAll renders entities; result entries may be ObjectEntity or arrays.
+            $route           = $this->normaliseObject(object: $routeResults[0]);
+            $applicationUuid = ($route['applicationUuid'] ?? null);
 
             if ($applicationUuid === null) {
                 $this->logger->warning('OpenBuilt: BuiltAppRoute for slug '.$slug.' is missing applicationUuid');
@@ -101,11 +123,11 @@ class ApplicationsController extends Controller
                 );
             }
 
-            // Step 2 — load the Application object and return its manifest.
-            $application = $this->objectService->getObject(
+            // Step 2 — load the Application object.
+            $application = $this->objectService->find(
+                id: $applicationUuid,
                 register: 'openbuilt',
-                schema: 'application',
-                uuid: $applicationUuid
+                schema: 'application'
             );
 
             if ($application === null) {
@@ -116,7 +138,8 @@ class ApplicationsController extends Controller
                 );
             }
 
-            $manifest = ($application['manifest'] ?? null);
+            $applicationArray = $this->normaliseObject(object: $application);
+            $manifest         = ($applicationArray['manifest'] ?? null);
 
             if ($manifest === null) {
                 $this->logger->warning('OpenBuilt: Application '.$applicationUuid.' has no manifest property');
@@ -136,4 +159,38 @@ class ApplicationsController extends Controller
             );
         }//end try
     }//end getManifest()
+
+    /**
+     * Coerce an OR result entry (ObjectEntity or array) to a plain associative array.
+     *
+     * FindAll() and find() may return ObjectEntity instances; we normalise to an
+     * array so the caller can use array access uniformly. Uses jsonSerialize()
+     * when present (the canonical ObjectEntity surface).
+     *
+     * @param mixed $object The OR object/result entry.
+     *
+     * @return array<string, mixed>
+     */
+    private function normaliseObject(mixed $object): array
+    {
+        if (is_array($object) === true) {
+            return $object;
+        }
+
+        if (is_object($object) === true && method_exists($object, 'jsonSerialize') === true) {
+            $serialised = $object->jsonSerialize();
+            if (is_array($serialised) === true) {
+                return $serialised;
+            }
+        }
+
+        if (is_object($object) === true && method_exists($object, 'getObject') === true) {
+            $inner = $object->getObject();
+            if (is_array($inner) === true) {
+                return $inner;
+            }
+        }
+
+        return [];
+    }//end normaliseObject()
 }//end class
