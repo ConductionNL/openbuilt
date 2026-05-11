@@ -40,13 +40,14 @@
 					<textarea
 						v-model="manifestText"
 						class="openbuilt-editor__textarea"
+						data-testid="openbuilt-editor-textarea"
 						spellcheck="false"
 						:placeholder="t('openbuilt', 'Paste or edit the JSON manifest here. See @conduction/nextcloud-vue/src/schemas/app-manifest.schema.json for the canonical schema.')" />
 					<div v-if="validationError" class="openbuilt-editor__error">
 						{{ t('openbuilt', 'Invalid manifest') }}: {{ validationError }}
 					</div>
 					<div class="openbuilt-editor__actions">
-						<button :disabled="!selected || saving" @click="save">
+						<button :disabled="!selected || saving" data-testid="openbuilt-editor-save" @click="save">
 							{{ saving ? t('openbuilt', 'Saving…') : t('openbuilt', 'Save') }}
 						</button>
 						<a v-if="selected && selected.status === 'published'" :href="builderUrl">

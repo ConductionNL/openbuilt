@@ -14,7 +14,7 @@
   - skeleton; the real manifest arrives from the backend merge.
   -->
 <template>
-	<div class="openbuilt-builder-host">
+	<div class="openbuilt-builder-host" data-testid="openbuilt-builder-host">
 		<CnAppRoot
 			:key="slug"
 			:app-id="appId"
