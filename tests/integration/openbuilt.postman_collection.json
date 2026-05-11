@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "openbuilt-collection",
 		"name": "OpenBuilt Integration Tests",
-		"description": "Integration test collection for the OpenBuilt Nextcloud app. Real API tests are authored during apply phase of bootstrap-openbuilt (tasks 5.1–5.3).",
+		"description": "Integration test collection for the OpenBuilt Nextcloud app. Covers the public manifest endpoint and the OpenRegister-backed Application listing. Assumes the SeedHelloWorld repair step has run.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -39,27 +39,136 @@
 	],
 	"item": [
 		{
-			"name": "Health Check",
+			"name": "Manifest endpoint",
 			"item": [
 				{
-					"name": "Nextcloud status",
+					"name": "GET hello-world manifest returns 200 with version/menu/pages",
 					"request": {
 						"method": "GET",
-						"url": "{{base_url}}/status.php",
-						"description": "Verify Nextcloud is running."
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "OCS-APIRequest",
+								"value": "true"
+							}
+						],
+						"url": "{{base_url}}/index.php/apps/openbuilt/api/applications/hello-world/manifest",
+						"description": "Public manifest read for the seeded hello-world virtual app."
 					},
 					"event": [
 						{
 							"listen": "test",
 							"script": {
+								"type": "text/javascript",
 								"exec": [
-									"pm.test('Nextcloud is running', function () {",
+									"pm.test('returns 200', function () {",
 									"    pm.response.to.have.status(200);",
-									"    const json = pm.response.json();",
-									"    pm.expect(json.installed).to.be.true;",
+									"});",
+									"const body = pm.response.json();",
+									"pm.test('manifest is returned unwrapped (no envelope)', function () {",
+									"    pm.expect(body).to.not.have.property('error');",
+									"    pm.expect(body).to.not.have.property('data');",
+									"});",
+									"pm.test('manifest has version', function () {",
+									"    pm.expect(body).to.have.property('version');",
+									"    pm.expect(body.version).to.be.a('string');",
+									"});",
+									"pm.test('manifest has menu array', function () {",
+									"    pm.expect(body).to.have.property('menu');",
+									"    pm.expect(body.menu).to.be.an('array');",
+									"});",
+									"pm.test('manifest has pages array', function () {",
+									"    pm.expect(body).to.have.property('pages');",
+									"    pm.expect(body.pages).to.be.an('array');",
+									"    pm.expect(body.pages.length).to.be.greaterThan(0);",
 									"});"
-								],
-								"type": "text/javascript"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "GET unknown-slug manifest returns 404",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "OCS-APIRequest",
+								"value": "true"
+							}
+						],
+						"url": "{{base_url}}/index.php/apps/openbuilt/api/applications/no-such-slug/manifest",
+						"description": "Manifest lookup for a slug with no BuiltAppRoute must 404."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('returns 404', function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"const body = pm.response.json();",
+									"pm.test('error envelope is not_found', function () {",
+									"    pm.expect(body).to.have.property('error');",
+									"    pm.expect(body.error).to.eql('not_found');",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "OpenRegister-backed Application listing",
+			"item": [
+				{
+					"name": "GET /openregister/objects/openbuilt/application includes hello-world",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "OCS-APIRequest",
+								"value": "true"
+							}
+						],
+						"url": "{{base_url}}/index.php/apps/openregister/api/objects/openbuilt/application",
+						"description": "After SeedHelloWorld runs, the openbuilt/application register must list at least one object with slug='hello-world'."
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('returns 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"const body = pm.response.json();",
+									"// OR returns { results: [...] } as the canonical envelope.",
+									"const results = (body && body.results) ? body.results : body;",
+									"pm.test('result set is a non-empty array', function () {",
+									"    pm.expect(results).to.be.an('array');",
+									"    pm.expect(results.length).to.be.greaterThan(0);",
+									"});",
+									"pm.test('at least one Application has slug=hello-world', function () {",
+									"    const helloWorld = results.find(function (r) { return r && r.slug === 'hello-world'; });",
+									"    pm.expect(helloWorld, 'no Application with slug=hello-world found').to.not.be.undefined;",
+									"});"
+								]
 							}
 						}
 					]

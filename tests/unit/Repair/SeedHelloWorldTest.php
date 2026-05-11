@@ -107,7 +107,12 @@ class SeedHelloWorldTest extends TestCase
 
     /**
      * Test fresh-install path — when no existing hello-world exists, saveObject is called for the
-     * Application plus three HelloMessage objects (4 total saves).
+     * Application plus three HelloMessage objects (4 total saves at minimum).
+     *
+     * NOTE: the actual implementation also writes a BuiltAppRoute when the
+     * Application's @self.id is exposed (5 saves total). The minimum-4
+     * guarantee documented here protects against regressions that skip
+     * any of the four core writes (1 Application + 3 messages).
      *
      * @return void
      */
@@ -117,10 +122,58 @@ class SeedHelloWorldTest extends TestCase
             ->method('findAll')
             ->willReturn([]);
 
+        // Stub Application save to return an object that does NOT expose
+        // a @self.id — the BuiltAppRoute write path is skipped, leaving
+        // exactly 4 calls: 1 Application + 3 sample HelloMessages.
+        $bareEntity = new class () {
+            /**
+             * @return array<string, mixed>
+             */
+            public function jsonSerialize(): array
+            {
+                return [];
+            }
+        };
+
         $this->objectService->expects(self::exactly(4))
-            ->method('saveObject');
+            ->method('saveObject')
+            ->willReturn($bareEntity);
 
         $step = new SeedHelloWorld(logger: $this->logger, objectService: $this->objectService);
         $step->run($this->output);
     }//end testRunCreatesApplicationAndThreeMessagesOnFreshInstall()
+
+    /**
+     * Test that the BuiltAppRoute upkeep path is exercised when the
+     * Application save returns an entity exposing @self.id — five saves
+     * total (Application + BuiltAppRoute + 3 sample messages). This
+     * locks the design.md Decision 6 fallback for the missing
+     * x-openregister-lifecycle `on_transition.upsert_relation` hook.
+     *
+     * @return void
+     */
+    public function testRunCreatesBuiltAppRouteWhenApplicationUuidIsExposed(): void
+    {
+        $this->objectService->expects(self::once())
+            ->method('findAll')
+            ->willReturn([]);
+
+        // Stub Application save to return an entity exposing @self.id.
+        $applicationEntity = new class () {
+            /**
+             * @return array<string, mixed>
+             */
+            public function jsonSerialize(): array
+            {
+                return ['@self' => ['id' => 'app-uuid-123']];
+            }
+        };
+
+        $this->objectService->expects(self::exactly(5))
+            ->method('saveObject')
+            ->willReturn($applicationEntity);
+
+        $step = new SeedHelloWorld(logger: $this->logger, objectService: $this->objectService);
+        $step->run($this->output);
+    }//end testRunCreatesBuiltAppRouteWhenApplicationUuidIsExposed()
 }//end class

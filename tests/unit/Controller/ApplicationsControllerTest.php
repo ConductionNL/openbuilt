@@ -100,11 +100,13 @@ class ApplicationsControllerTest extends TestCase
     }//end setUp()
 
     /**
-     * Happy path — slug resolves to a published Application; manifest is returned unwrapped.
+     * Happy path — slug resolves to a published Application; manifest is
+     * returned unwrapped (no OR envelope) so useAppManifest can consume it
+     * directly.
      *
      * @return void
      */
-    public function testGetManifestReturnsManifestUnwrapped(): void
+    public function testGetManifestReturns200WithUnwrappedManifest(): void
     {
         $manifest = [
             'version' => '1.0.0',
@@ -123,7 +125,10 @@ class ApplicationsControllerTest extends TestCase
         self::assertInstanceOf(JSONResponse::class, $result);
         self::assertSame(Http::STATUS_OK, $result->getStatus());
         self::assertSame($manifest, $result->getData());
-    }//end testGetManifestReturnsManifestUnwrapped()
+        // Manifest is returned UNWRAPPED — no envelope keys leak.
+        self::assertArrayNotHasKey('data', $result->getData());
+        self::assertArrayNotHasKey('error', $result->getData());
+    }//end testGetManifestReturns200WithUnwrappedManifest()
 
     /**
      * Unknown slug → 404 with not_found error code.
@@ -159,4 +164,30 @@ class ApplicationsControllerTest extends TestCase
         $data = $result->getData();
         self::assertSame('inconsistent_state', $data['error']);
     }//end testGetManifestReturns500WhenRouteMissingApplicationUuid()
+
+    /**
+     * Inconsistent state — BuiltAppRoute points to an applicationUuid that
+     * no longer resolves to an Application (the Application was deleted
+     * but the route survived). The controller MUST return a 500 with the
+     * `inconsistent_state` error code rather than leaking a 404 (which is
+     * reserved for unknown slugs).
+     *
+     * @return void
+     */
+    public function testGetManifestReturns500OnInconsistentState(): void
+    {
+        $this->objectService->method('searchObjects')
+            ->willReturn([['applicationUuid' => 'dangling-uuid']]);
+
+        // find() returns null — Application no longer exists.
+        $this->objectService->method('find')->willReturn(null);
+
+        $this->logger->expects(self::atLeastOnce())->method('warning');
+
+        $result = $this->controller->getManifest(slug: 'hello-world');
+
+        self::assertSame(Http::STATUS_INTERNAL_SERVER_ERROR, $result->getStatus());
+        $data = $result->getData();
+        self::assertSame('inconsistent_state', $data['error']);
+    }//end testGetManifestReturns500OnInconsistentState()
 }//end class
