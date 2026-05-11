@@ -92,8 +92,8 @@
 
 - [x] 5.1 **PHPUnit** — `tests/unit/Controller/ApplicationsControllerTest.php` covers `getManifest` (200 happy path + 404 unknown-slug + 500 inconsistent-state). _Organisation scoping requires functional test in container._
 - [ ] 5.2 **PHPUnit** — `tests/Integration/ApplicationLifecycleTest.php` walks the Application through `draft → published → archived → draft`, asserts audit entries on each transition, asserts a disallowed transition is rejected, asserts BuiltAppRoute upkeep.
-- [ ] 5.3 **Newman** — `tests/api/openbuilt.postman_collection.json` covers `GET /api/applications/{slug}/manifest` (200, 404) plus standard OR-REST CRUD on Applications.
-- [ ] 5.4 **Playwright** — `tests/e2e/builder-host.spec.ts` opens the OpenBuilt shell, navigates to `/builder/hello-world`, asserts the seeded index page renders three messages, opens a detail page, opens the form page, and round-trips a manifest edit through the textarea editor.
+- [x] 5.3 **Newman** — `tests/integration/openbuilt.postman_collection.json` covers `GET /api/applications/{slug}/manifest` (200, 404) plus a full CRUD round-trip on Applications via OR REST (POST/GET/PUT/DELETE) and a manifest-after-publish check. 8 requests, all with status + JSON-shape assertions.
+- [x] 5.4 **Playwright** — `playwright.config.ts` + `tests/e2e/{builder-host,application-editor,manifest-endpoint}.spec.ts` cover the seeded builder-host journey (index→detail→form), the textarea editor round-trip, and the public manifest endpoint shape. Requires `npx playwright install --with-deps` once; runs via `npm run test:e2e`.
 
 ## 6. Documentation (ADR-009, ADR-010)
 
