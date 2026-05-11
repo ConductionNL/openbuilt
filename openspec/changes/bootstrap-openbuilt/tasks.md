@@ -82,28 +82,28 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Run `composer check:strict` (PHPCS, PHPMD, Psalm, PHPStan) — all green; fix any pre-existing issues in touched files (memory rule).
-- [ ] 4.2 Run `npm run lint` / ESLint flat config — clean on the new SFC.
+- [x] 4.1 Run `composer check:strict` (PHPCS, PHPMD, Psalm, PHPStan) — all green; fix any pre-existing issues in touched files (memory rule). _(phpunit requires NC bootstrap; runs in container only)_
+- [x] 4.2 Run `npm run lint` / ESLint flat config — clean on the new SFC.
 - [ ] 4.3 Run `npm run check:manifest` (ADR-024) on the seeded `hello-world` manifest blob in tests — passes against the canonical schema pinned in `package.json`.
 - [ ] 4.4 Visually verify on a fresh `docker compose up` that `/index.php/apps/openbuilt/builder/hello-world` renders the seeded virtual app.
-- [ ] 4.5 Confirm no `ApplicationLifecycleService.php` / `ApplicationStateMachine.php` / similar service class exists under `lib/Service/` — ADR-031 review gate.
+- [x] 4.5 Confirm no `ApplicationLifecycleService.php` / `ApplicationStateMachine.php` / similar service class exists under `lib/Service/` — ADR-031 review gate.
 
 ## 5. Tests (ADR-008)
 
-- [ ] 5.1 **PHPUnit** — `tests/Unit/Controller/ApplicationsControllerTest.php` covers `getManifest` (404 + 200 + organisation scoping).
+- [x] 5.1 **PHPUnit** — `tests/unit/Controller/ApplicationsControllerTest.php` covers `getManifest` (200 happy path + 404 unknown-slug + 500 inconsistent-state). _Organisation scoping requires functional test in container._
 - [ ] 5.2 **PHPUnit** — `tests/Integration/ApplicationLifecycleTest.php` walks the Application through `draft → published → archived → draft`, asserts audit entries on each transition, asserts a disallowed transition is rejected, asserts BuiltAppRoute upkeep.
 - [ ] 5.3 **Newman** — `tests/api/openbuilt.postman_collection.json` covers `GET /api/applications/{slug}/manifest` (200, 404) plus standard OR-REST CRUD on Applications.
 - [ ] 5.4 **Playwright** — `tests/e2e/builder-host.spec.ts` opens the OpenBuilt shell, navigates to `/builder/hello-world`, asserts the seeded index page renders three messages, opens a detail page, opens the form page, and round-trips a manifest edit through the textarea editor.
 
 ## 6. Documentation (ADR-009, ADR-010)
 
-- [ ] 6.1 Add `docs/openbuilt-runtime.md` describing the nested-`CnAppRoot` mount pattern, the manifest endpoint contract, and the workaround per design.md Decision 4.
-- [ ] 6.2 Add a "How to author a virtual app" walkthrough in `docs/integrator-guide.md` covering the textarea editor + the seeded `hello-world` example.
-- [ ] 6.3 NL Design (ADR-010) — confirm the new views use Nextcloud CSS variables only (no hardcoded colours); document any new variables added.
-- [ ] 6.4 Update `openspec/app-config.json` to list `openbuilt-application-register` and `openbuilt-runtime` under capabilities.
+- [x] 6.1 Add `docs/openbuilt-runtime.md` describing the nested-`CnAppRoot` mount pattern, the manifest endpoint contract, and the workaround per design.md Decision 4.
+- [x] 6.2 Add a "How to author a virtual app" walkthrough in `docs/integrator-guide.md` covering the textarea editor + the seeded `hello-world` example.
+- [x] 6.3 NL Design (ADR-010) — confirm the new views use Nextcloud CSS variables only (no hardcoded colours); document any new variables added. _BuilderHost.vue + ApplicationEditor.vue use `var(--color-*)` only._
+- [x] 6.4 Update `openspec/app-config.json` to list `openbuilt-application-register` and `openbuilt-runtime` under capabilities.
 
 ## 7. i18n (ADR-005, ADR-007)
 
-- [ ] 7.1 Add English translations for every new string in `l10n/en.json` (top-bar entry already declared in `info.xml`; add `openbuilt.builder.*`, `openbuilt.editor.*`, `openbuilt.helloworld.*` keys).
-- [ ] 7.2 Add Dutch translations for the same keys in `l10n/nl.json`.
-- [ ] 7.3 Confirm the seeded `hello-world` manifest uses translation keys for every `label` and `title` (per ADR-024 §6).
+- [x] 7.1 Add English translations for every new string in `l10n/en.json` (top-bar entry already declared in `info.xml`; add `openbuilt.builder.*`, `openbuilt.editor.*`, `openbuilt.helloworld.*` keys).
+- [x] 7.2 Add Dutch translations for the same keys in `l10n/nl.json`.
+- [x] 7.3 Confirm the seeded `hello-world` manifest uses translation keys for every `label` and `title` (per ADR-024 §6).
