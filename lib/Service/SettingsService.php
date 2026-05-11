@@ -5,11 +5,14 @@
  *
  * Service for managing OpenBuilt application configuration and settings.
  *
+ * SPDX-License-Identifier: EUPL-1.2
+ * SPDX-FileCopyrightText: 2026 Conduction B.V.
+ *
  * @category Service
  * @package  OCA\OpenBuilt\Service
  *
- * @author    Conduction Development Team <dev@conductio.nl>
- * @copyright 2024 Conduction B.V.
+ * @author    Conduction Development Team <dev@conduction.nl>
+ * @copyright 2026 Conduction B.V.
  * @license   EUPL-1.2 https://joinup.ec.europa.eu/collection/eupl/eupl-text-eupl-12
  *
  * @version GIT: <git-id>
@@ -124,11 +127,39 @@ class SettingsService
     /**
      * Load configuration from openbuilt_register.json via OpenRegister.
      *
-     * @param bool $force Force re-import even if already configured.
+     * Idempotent — relies on OR's ConfigurationService::importFromApp to
+     * detect already-imported state and short-circuit. Call
+     * reloadConfiguration() to force a re-import.
      *
      * @return array<string,mixed> Result with success flag, message, and version.
      */
-    public function loadConfiguration(bool $force=false): array
+    public function loadConfiguration(): array
+    {
+        return $this->doLoadConfiguration(force: false);
+    }//end loadConfiguration()
+
+    /**
+     * Force a re-import of openbuilt_register.json via OpenRegister, ignoring
+     * any cached or already-imported state.
+     *
+     * Used by the InitializeSettings repair step and the admin "Reload" action.
+     *
+     * @return array<string,mixed> Result with success flag, message, and version.
+     */
+    public function reloadConfiguration(): array
+    {
+        return $this->doLoadConfiguration(force: true);
+    }//end reloadConfiguration()
+
+    /**
+     * Shared implementation of the configuration import — private so the
+     * boolean flag never reaches the public API.
+     *
+     * @param bool $force Whether to force re-import.
+     *
+     * @return array<string,mixed>
+     */
+    private function doLoadConfiguration(bool $force): array
     {
         if ($this->isOpenRegisterAvailable() === false) {
             $this->logger->warning('OpenBuilt: OpenRegister not available, skipping register initialization');
@@ -165,5 +196,5 @@ class SettingsService
                 'message' => $e->getMessage(),
             ];
         }//end try
-    }//end loadConfiguration()
+    }//end doLoadConfiguration()
 }//end class

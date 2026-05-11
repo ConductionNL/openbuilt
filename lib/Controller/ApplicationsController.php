@@ -1,5 +1,4 @@
 <?php
-// SPDX-License-Identifier: EUPL-1.2
 
 /**
  * OpenBuilt Applications Controller
@@ -8,6 +7,9 @@
  * this is the ONLY app-local controller surface — all CRUD on Application
  * and BuiltAppRoute objects is delegated to OpenRegister's REST API
  * directly (ADR-022).
+ *
+ * SPDX-License-Identifier: EUPL-1.2
+ * SPDX-FileCopyrightText: 2026 Conduction B.V.
  *
  * @category Controller
  * @package  OCA\OpenBuilt\Controller
@@ -26,13 +28,13 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Controller;
 
 use OCA\OpenBuilt\AppInfo\Application;
+use OCA\OpenRegister\Service\ObjectService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
-use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -43,19 +45,19 @@ class ApplicationsController extends Controller
     /**
      * Constructor.
      *
-     * @param IRequest        $request The current HTTP request
-     * @param LoggerInterface $logger  PSR logger for diagnostics
+     * @param IRequest        $request       The current HTTP request
+     * @param LoggerInterface $logger        PSR logger for diagnostics
+     * @param ObjectService   $objectService OpenRegister object service (hard dep via info.xml)
      *
      * @return void
      */
     public function __construct(
         IRequest $request,
         private readonly LoggerInterface $logger,
+        private readonly ObjectService $objectService,
     ) {
         parent::__construct(appName: Application::APP_ID, request: $request);
-
     }//end __construct()
-
 
     /**
      * Return the stored manifest JSON blob for a given virtual-app slug.
@@ -73,13 +75,8 @@ class ApplicationsController extends Controller
     public function getManifest(string $slug): JSONResponse
     {
         try {
-            // OpenRegister provides the OpenRegisterService and ObjectService via DI;
-            // resolve at request time to avoid hard-coupling at app boot when OR is
-            // not yet installed (per ADR-022).
-            $objectService = Server::get('OCA\\OpenRegister\\Service\\ObjectService');
-
             // Step 1 — resolve slug → applicationUuid via the BuiltAppRoute index.
-            $routeResults = $objectService->getObjects(
+            $routeResults = $this->objectService->getObjects(
                 register: 'openbuilt',
                 schema: 'built-app-route',
                 filters: ['slug' => $slug],
@@ -105,7 +102,7 @@ class ApplicationsController extends Controller
             }
 
             // Step 2 — load the Application object and return its manifest.
-            $application = $objectService->getObject(
+            $application = $this->objectService->getObject(
                 register: 'openbuilt',
                 schema: 'application',
                 uuid: $applicationUuid
@@ -138,6 +135,5 @@ class ApplicationsController extends Controller
                 statusCode: Http::STATUS_INTERNAL_SERVER_ERROR
             );
         }//end try
-
     }//end getManifest()
 }//end class

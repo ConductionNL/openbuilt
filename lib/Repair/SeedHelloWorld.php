@@ -13,6 +13,9 @@
  * Application's x-openregister-lifecycle handles the BuiltAppRoute
  * upkeep on publish.
  *
+ * SPDX-License-Identifier: EUPL-1.2
+ * SPDX-FileCopyrightText: 2026 Conduction B.V.
+ *
  * @category Repair
  * @package  OCA\OpenBuilt\Repair
  *
@@ -29,9 +32,9 @@ declare(strict_types=1);
 
 namespace OCA\OpenBuilt\Repair;
 
+use OCA\OpenRegister\Service\ObjectService;
 use OCP\Migration\IOutput;
 use OCP\Migration\IRepairStep;
-use OCP\Server;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -44,15 +47,16 @@ class SeedHelloWorld implements IRepairStep
     /**
      * Constructor.
      *
-     * @param LoggerInterface $logger Logger for diagnostics
+     * @param LoggerInterface $logger        Logger for diagnostics
+     * @param ObjectService   $objectService OpenRegister object service (hard dep via info.xml)
      *
      * @return void
      */
     public function __construct(
         private LoggerInterface $logger,
+        private ObjectService $objectService,
     ) {
     }//end __construct()
-
 
     /**
      * Get the name of this repair step.
@@ -63,7 +67,6 @@ class SeedHelloWorld implements IRepairStep
     {
         return 'Seed the canonical hello-world virtual app and sample messages';
     }//end getName()
-
 
     /**
      * Run the repair step to seed the hello-world virtual app.
@@ -77,19 +80,8 @@ class SeedHelloWorld implements IRepairStep
         $output->info('Seeding hello-world virtual app...');
 
         try {
-            $objectService = Server::get('OCA\\OpenRegister\\Service\\ObjectService');
-        } catch (\Throwable $e) {
-            $output->warning('OpenRegister not available; skipping seed.');
-            $this->logger->warning(
-                'OpenBuilt: SeedHelloWorld skipped — OpenRegister not available',
-                ['exception' => $e->getMessage()]
-            );
-            return;
-        }
-
-        try {
             // Idempotency guard — if a hello-world Application already exists, do nothing.
-            $existing = $objectService->getObjects(
+            $existing = $this->objectService->getObjects(
                 register: 'openbuilt',
                 schema: 'application',
                 filters: ['slug' => self::SEED_SLUG],
@@ -102,7 +94,9 @@ class SeedHelloWorld implements IRepairStep
             }
 
             // Create the Application object with the canonical hello-world manifest.
-            $application = $objectService->saveObject(
+            // The x-openregister-lifecycle.on_transition action on publish upserts
+            // the BuiltAppRoute automatically — no separate save needed here.
+            $this->objectService->saveObject(
                 object: [
                     'slug'        => self::SEED_SLUG,
                     'name'        => 'Hello World',
@@ -119,7 +113,7 @@ class SeedHelloWorld implements IRepairStep
 
             // Seed three sample HelloMessage objects.
             foreach ($this->buildSampleMessages() as $message) {
-                $objectService->saveObject(
+                $this->objectService->saveObject(
                     object: $message,
                     register: 'openbuilt',
                     schema: 'hello-message'
@@ -136,9 +130,7 @@ class SeedHelloWorld implements IRepairStep
                 ['exception' => $e->getMessage()]
             );
         }//end try
-
     }//end run()
-
 
     /**
      * Build the canonical hello-world manifest.
@@ -199,12 +191,12 @@ class SeedHelloWorld implements IRepairStep
                 ],
             ],
         ];
-
     }//end buildHelloWorldManifest()
-
 
     /**
      * Build the three sample HelloMessage objects.
+     *
+     * Bodies are kept under the 150-character line limit for PHPCS.
      *
      * @return array<int, array<string, string>>
      */
@@ -213,17 +205,16 @@ class SeedHelloWorld implements IRepairStep
         return [
             [
                 'title' => 'Welcome to OpenBuilt',
-                'body'  => 'This message is rendered by your first virtual app. The page you see right now is built entirely from a JSON manifest stored in OpenRegister.',
+                'body'  => 'This message is rendered by your first virtual app — built from a JSON manifest stored in OpenRegister.',
             ],
             [
                 'title' => 'Edit me',
-                'body'  => 'Open the OpenBuilt shell, find the hello-world application, and edit its manifest to change what you see here. Reload the page to see the change.',
+                'body'  => 'Open the OpenBuilt shell, find hello-world, and edit its manifest to change what you see here.',
             ],
             [
                 'title' => 'Built from a manifest',
-                'body'  => 'Everything in this virtual app — the menu, the pages, the columns, the form — came from a JSON manifest. No PHP was authored for hello-world specifically.',
+                'body'  => 'Everything here — menu, pages, columns, form — came from a JSON manifest. No PHP was written for hello-world.',
             ],
         ];
-
     }//end buildSampleMessages()
 }//end class
