@@ -52,6 +52,9 @@
 				<p class="openbuilt-dashboard__hint">
 					{{ t('openbuilt', 'Wire buttons here to create records, open lists, or deep links. Use the sidebar for Settings and Documentation.') }}
 				</p>
+				<NcButton type="primary" @click="$router.push({ name: 'TemplateGallery' })">
+					{{ t('openbuilt', 'Create from template') }}
+				</NcButton>
 			</CnConfigurationCard>
 		</div>
 	</div>
@@ -59,6 +62,7 @@
 
 <script>
 import { CnConfigurationCard, CnKpiGrid, CnStatsBlock } from '@conduction/nextcloud-vue'
+import { NcButton } from '@nextcloud/vue'
 import AccountGroupOutline from 'vue-material-design-icons/AccountGroupOutline.vue'
 import CalendarClock from 'vue-material-design-icons/CalendarClock.vue'
 import CheckCircleOutline from 'vue-material-design-icons/CheckCircleOutline.vue'
@@ -70,6 +74,7 @@ export default {
 		CnConfigurationCard,
 		CnKpiGrid,
 		CnStatsBlock,
+		NcButton,
 	},
 	data() {
 		return {

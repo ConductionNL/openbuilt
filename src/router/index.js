@@ -5,6 +5,7 @@ import { generateUrl } from '@nextcloud/router'
 import Dashboard from '../views/Dashboard.vue'
 import ApplicationEditor from '../views/ApplicationEditor.vue'
 import BuilderHost from '../views/BuilderHost.vue'
+import TemplateGallery from '../views/TemplateGallery.vue'
 
 // NOTE: AdminRoot is intentionally NOT registered as a vue-router route.
 // Admin settings are mounted via the separate `openbuilt-settings.js` bundle
@@ -20,6 +21,8 @@ export default new Router({
 	base: generateUrl('/apps/openbuilt'),
 	routes: [
 		{ path: '/', name: 'Dashboard', component: Dashboard },
+		// Template gallery — citizen-developer on-ramp (REQ-OBTC-003).
+		{ path: '/templates', name: 'TemplateGallery', component: TemplateGallery },
 		// Manifest editor (textarea v1). Visual editor lands in chain spec #5.
 		{ path: '/applications', name: 'ApplicationEditor', component: ApplicationEditor },
 		// Virtual-app host. The trailing wildcard forwards path segments to

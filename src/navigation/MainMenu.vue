@@ -10,6 +10,13 @@
 				</template>
 			</NcAppNavigationItem>
 			<NcAppNavigationItem
+				:name="t('openbuilt', 'Templates')"
+				:to="{ name: 'TemplateGallery' }">
+				<template #icon>
+					<ViewGridOutline :size="20" />
+				</template>
+			</NcAppNavigationItem>
+			<NcAppNavigationItem
 				:name="t('openbuilt', 'Documentation')"
 				@click="openLink('https://conduction.nl', '_blank')">
 				<template #icon>
@@ -34,6 +41,7 @@ import { NcAppNavigation, NcAppNavigationItem } from '@nextcloud/vue'
 import BookOpenVariantOutline from 'vue-material-design-icons/BookOpenVariantOutline.vue'
 import CogIcon from 'vue-material-design-icons/Cog.vue'
 import HomeIcon from 'vue-material-design-icons/Home.vue'
+import ViewGridOutline from 'vue-material-design-icons/ViewGridOutline.vue'
 
 export default {
 	name: 'MainMenu',
@@ -43,6 +51,7 @@ export default {
 		BookOpenVariantOutline,
 		CogIcon,
 		HomeIcon,
+		ViewGridOutline,
 	},
 	methods: {
 		openLink(url, target = '_blank') {
