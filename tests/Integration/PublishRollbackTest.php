@@ -96,6 +96,13 @@ class PublishRollbackTest extends TestCase
     {
         parent::setUp();
 
+        // The publish/rollback cycle is driven by OR's lifecycle feature
+        // (ObjectTransitionedEvent), which is absent from OR's `main` — skip
+        // rather than fatal-error on the missing class.
+        if (class_exists(ObjectTransitionedEvent::class) === false) {
+            $this->markTestSkipped('OpenRegister does not provide ObjectTransitionedEvent (lifecycle feature not in the installed OR release).');
+        }
+
         $this->saved       = [];
         $this->store       = [];
         $this->uuidCounter = 0;

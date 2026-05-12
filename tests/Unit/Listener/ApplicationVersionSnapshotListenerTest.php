@@ -76,6 +76,14 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
     {
         parent::setUp();
 
+        // ObjectTransitionedEvent is part of OpenRegister's lifecycle feature; it
+        // is absent from OR's `main` (the ref the CI workflow currently installs).
+        // Skip rather than fatal-error on the missing class until the lifecycle
+        // feature lands on the OR release this app is tested against.
+        if (class_exists(ObjectTransitionedEvent::class) === false) {
+            $this->markTestSkipped('OpenRegister does not provide ObjectTransitionedEvent (lifecycle feature not in the installed OR release).');
+        }
+
         $this->logger        = $this->createMock(LoggerInterface::class);
         $this->objectService = $this->makeObjectServiceMock();
 
