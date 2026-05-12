@@ -33,6 +33,9 @@ declare(strict_types=1);
 namespace OCA\OpenBuilt\Tests\Unit\Listener;
 
 use OCA\OpenBuilt\Listener\ApplicationVersionSnapshotListener;
+use OCA\OpenRegister\Db\ObjectEntity;
+use OCA\OpenRegister\Event\ObjectTransitionedEvent;
+use OCA\OpenRegister\Service\ObjectService;
 use OCP\EventDispatcher\Event;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
@@ -58,11 +61,11 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
     private LoggerInterface&MockObject $logger;
 
     /**
-     * Mock OR ObjectService — typed as object since the real class lives in another app.
+     * Mock OR ObjectService.
      *
-     * @var MockObject
+     * @var ObjectService&MockObject
      */
-    private MockObject $objectService;
+    private ObjectService&MockObject $objectService;
 
     /**
      * Set up shared fixtures.
@@ -74,9 +77,7 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         parent::setUp();
 
         $this->logger        = $this->createMock(LoggerInterface::class);
-        $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['saveObject', 'searchObjectsBySlug'])
-            ->getMock();
+        $this->objectService = $this->createMock(ObjectService::class);
 
         // Default: no BuiltAppRoute exists yet → the listener creates one.
         $this->objectService->method('searchObjectsBySlug')->willReturn([]);
@@ -104,12 +105,10 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         array $serialisedObject,
         ?string $userId='alice'
     ): MockObject {
-        $entity = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['jsonSerialize'])
-            ->getMock();
+        $entity = $this->createMock(ObjectEntity::class);
         $entity->method('jsonSerialize')->willReturn($serialisedObject);
 
-        $event = $this->getMockBuilder(\OCA\OpenRegister\Event\ObjectTransitionedEvent::class)
+        $event = $this->getMockBuilder(ObjectTransitionedEvent::class)
             ->disableOriginalConstructor()
             ->onlyMethods(['getSchema', 'getFrom', 'getTo', 'getObject', 'getUserId'])
             ->getMock();
@@ -131,9 +130,7 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
      */
     private function makeReturnedEntity(array $payload): MockObject
     {
-        $entity = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['jsonSerialize'])
-            ->getMock();
+        $entity = $this->createMock(ObjectEntity::class);
         $entity->method('jsonSerialize')->willReturn($payload);
         return $entity;
     }//end makeReturnedEntity()
@@ -147,8 +144,10 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
      */
     private function unpackSave(array $args): array
     {
+        // ObjectService::saveObject(array|ObjectEntity $object, ?array $extend, mixed $register, mixed $schema):
+        // a named-arg call site (object/register/schema) yields positional args [object, [], register, schema].
         $payload = ($args['object'] ?? ($args[0] ?? null));
-        $schema  = ($args['schema'] ?? ($args[2] ?? null));
+        $schema  = ($args['schema'] ?? ($args[3] ?? null));
         return [$payload, $schema];
     }//end unpackSave()
 
@@ -298,9 +297,7 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         ];
 
         // Re-stub searchObjectsBySlug for this test: the route exists and is correct.
-        $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['saveObject', 'searchObjectsBySlug'])
-            ->getMock();
+        $this->objectService = $this->createMock(ObjectService::class);
         $this->objectService->method('searchObjectsBySlug')->willReturn([
             ['@self' => ['id' => 'route-uuid-9'], 'slug' => 'already-routed', 'applicationUuid' => 'app-uuid-9'],
         ]);
@@ -369,9 +366,10 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
             objectService: $this->objectService
         );
 
-        // The handle() must not propagate the runtime exception.
+        // The handle() must not propagate the runtime exception — reaching this
+        // line at all is the assertion; the logger->error() expectation above is
+        // verified at teardown.
         $listener->handle($event);
-        $this->expectNotToPerformAssertions();
     }//end testHandleLogsAndDoesNotThrowWhenOrServiceFails()
 
     /**
@@ -401,9 +399,7 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         );
 
         // 1st publish: no route yet. 2nd publish: route exists and is correct.
-        $this->objectService = $this->getMockBuilder(\stdClass::class)
-            ->addMethods(['saveObject', 'searchObjectsBySlug'])
-            ->getMock();
+        $this->objectService = $this->createMock(ObjectService::class);
         $this->objectService->method('searchObjectsBySlug')->willReturnOnConsecutiveCalls(
             [],
             [['@self' => ['id' => 'route-3'], 'slug' => 'idempotent', 'applicationUuid' => 'app-uuid-3']],
