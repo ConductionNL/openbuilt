@@ -181,13 +181,14 @@ export default {
 			if (!slug) {
 				return
 			}
-			// Feature-detect chain #5 page editor; fall back to the textarea editor.
+			// Feature-detect chain #5 page editor; fall back to the manifest-driven
+			// virtual-app manager, then the dashboard.
 			const editorRoute = this.$router.resolve({ name: 'PageEditor', params: { slug } })
 			if (editorRoute?.resolved?.matched?.length > 0) {
 				this.$router.push(editorRoute.resolved.fullPath)
 				return
 			}
-			const fallback = this.$router.resolve({ name: 'ApplicationEditor', params: { slug } })
+			const fallback = this.$router.resolve({ name: 'VirtualApps', params: { slug } })
 			if (fallback?.resolved?.matched?.length > 0) {
 				this.$router.push(fallback.resolved.fullPath)
 				return
