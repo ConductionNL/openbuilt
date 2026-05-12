@@ -23,5 +23,10 @@ jobs:
       enable-phpunit: true
       enable-newman: true
       database: sqlite
-      additional-apps: '[{"repo":"ConductionNL/openregister","app":"openregister","ref":"main"}]'
+      # OpenRegister's `main` is stale ("overwritten with beta 2") and predates the
+      # lifecycle/transition feature OpenBuilt depends on (ObjectTransitionedEvent,
+      # ObjectService::searchObjectsBySlug, the /api/objects/{id}/transition route,
+      # the x-openregister-lifecycle schema annotation). Track `development` — the
+      # active OR integration branch, the same target OpenBuilt's own PRs use.
+      additional-apps: '[{"repo":"ConductionNL/openregister","app":"openregister","ref":"development"}]'
       enable-sbom: true

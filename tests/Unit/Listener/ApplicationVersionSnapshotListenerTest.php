@@ -77,11 +77,34 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         parent::setUp();
 
         $this->logger        = $this->createMock(LoggerInterface::class);
-        $this->objectService = $this->createMock(ObjectService::class);
+        $this->objectService = $this->makeObjectServiceMock();
 
         // Default: no BuiltAppRoute exists yet → the listener creates one.
         $this->objectService->method('searchObjectsBySlug')->willReturn([]);
     }//end setUp()
+
+    /**
+     * Build an ObjectService test double exposing the surface the listener uses.
+     *
+     * `searchObjectsBySlug()` was added to ObjectService after the OpenRegister
+     * release this app is built+tested against, so it is added via
+     * `MockBuilder::addMethods()` when the real class does not declare it (and
+     * mocked normally when it does) — the listener already wraps the call in a
+     * try/catch that treats a missing method as "no route yet".
+     *
+     * @return ObjectService&MockObject
+     */
+    private function makeObjectServiceMock(): ObjectService&MockObject
+    {
+        $builder = $this->getMockBuilder(ObjectService::class)->disableOriginalConstructor();
+        if (method_exists(ObjectService::class, 'searchObjectsBySlug') === true) {
+            $builder->onlyMethods(['saveObject', 'searchObjectsBySlug']);
+        } else {
+            $builder->onlyMethods(['saveObject'])->addMethods(['searchObjectsBySlug']);
+        }
+
+        return $builder->getMock();
+    }//end makeObjectServiceMock()
 
     /**
      * Build a fake ObjectTransitionedEvent.
@@ -297,7 +320,7 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         ];
 
         // Re-stub searchObjectsBySlug for this test: the route exists and is correct.
-        $this->objectService = $this->createMock(ObjectService::class);
+        $this->objectService = $this->makeObjectServiceMock();
         $this->objectService->method('searchObjectsBySlug')->willReturn([
             ['@self' => ['id' => 'route-uuid-9'], 'slug' => 'already-routed', 'applicationUuid' => 'app-uuid-9'],
         ]);
@@ -399,7 +422,7 @@ class ApplicationVersionSnapshotListenerTest extends TestCase
         );
 
         // 1st publish: no route yet. 2nd publish: route exists and is correct.
-        $this->objectService = $this->createMock(ObjectService::class);
+        $this->objectService = $this->makeObjectServiceMock();
         $this->objectService->method('searchObjectsBySlug')->willReturnOnConsecutiveCalls(
             [],
             [['@self' => ['id' => 'route-3'], 'slug' => 'idempotent', 'applicationUuid' => 'app-uuid-3']],
