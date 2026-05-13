@@ -239,8 +239,7 @@ export default function Home() {
         <DetailHero
           background="cobalt"
           appId="openbuilt"
-          status={{ label: 'Beta', color: 'var(--c-orange-knvb)' }}
-          version="v0.x"
+          {/* status + version dropped — preset 2.10+ auto-derives from appinfo/info.xml */}
           locales="NL · EN"
           title="OpenBuilt"
           tagline={TAGLINE}
