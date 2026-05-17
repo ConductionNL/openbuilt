@@ -6,6 +6,7 @@ parameters:
         - phpstan-bootstrap.php
     excludePaths:
         - vendor
+        - lib/Resources/template
     scanDirectories:
         - vendor/nextcloud/ocp
     reportUnmatchedIgnoredErrors: false
@@ -14,11 +15,13 @@ parameters:
         - '#Call to an undefined method OC::#'
         - '#Class OC not found#'
         - '#Access to static property \$server on an unknown class OC#'
+        - '#Access to static property \$SERVERROOT on an unknown class OC#'
         # OCA classes from other apps (OpenRegister) not available during static analysis
         - '#unknown class OCA\\OpenRegister\\#'
         - '#OCA\\OpenRegister\\[a-zA-Z\\]+.*not found#'
         - '#on an unknown class OCA\\OpenRegister\\#'
         - '#has invalid return type OCA\\OpenRegister\\#'
+        - '#has invalid type OCA\\OpenRegister\\#'
         # GuzzleHttp is available at runtime via Nextcloud but not in composer require
         - '#unknown class GuzzleHttp\\#'
         - '#GuzzleHttp\\[a-zA-Z\\]+.*not found#'

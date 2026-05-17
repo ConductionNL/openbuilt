@@ -12,6 +12,14 @@
 	"autoload": {
 		"psr-4": {
 			"OCA\\OpenBuilt\\": "lib/"
+		},
+		"exclude-from-classmap": [
+			"lib/Resources/template/"
+		]
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"OCA\\OpenRegister\\": "tests/Stubs/"
 		}
 	},
 	"require": {
